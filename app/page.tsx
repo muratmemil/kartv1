@@ -30,13 +30,13 @@ type Payment = {
   id: string;
   card: string;
   date: string;
-  status: "Yaklasiyor" | "Planlandi";
+  status: "Yaklaşıyor" | "Planlandı";
 };
 
 const storageKey = "kart-takip:v0.5:cards";
 
 const colorOptions = [
-  "from-emerald-500 to-cyan-500",
+  "from-emerald-500 to-teal-500",
   "from-rose-500 to-orange-400",
   "from-sky-500 to-indigo-500",
   "from-violet-500 to-fuchsia-500",
@@ -59,21 +59,26 @@ const emptyForm: CardForm = {
 };
 
 const statusStyles: Record<Payment["status"], string> = {
-  Yaklasiyor: "bg-amber-400/15 text-amber-200 ring-amber-300/20",
-  Planlandi: "bg-cyan-400/10 text-cyan-200 ring-cyan-300/20",
+  Yaklaşıyor: "bg-amber-50 text-amber-700 ring-amber-200",
+  Planlandı: "bg-sky-50 text-sky-700 ring-sky-200",
 };
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("tr-TR", {
-    maximumFractionDigits: 0,
-    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 2,
   }).format(value) + " TL";
 }
 
 function parseMoney(value: string) {
-  const normalized = value.replace(/\./g, "").replace(",", ".").replace(/[^\d.]/g, "");
+  const normalized = value.replace(/TL/gi, "").replace(/\s/g, "").replace(/\./g, "").replace(",", ".").replace(/[^\d.]/g, "");
   const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatMoneyInput(value: string) {
+  const amount = parseMoney(value);
+  return amount > 0 ? formatCurrency(amount) : "";
 }
 
 function getUtilization(card: Card) {
@@ -89,7 +94,7 @@ function makePayments(cards: Card[]): Payment[] {
     id: card.id,
     card: card.name,
     date: card.dueDate,
-    status: index === 0 ? "Yaklasiyor" : "Planlandi",
+    status: index === 0 ? "Yaklaşıyor" : "Planlandı",
   }));
 }
 
@@ -158,10 +163,10 @@ export default function Home() {
   }, [cards]);
 
   const summary = [
-    { label: "Toplam borc", value: formatCurrency(totals.totalDebt), note: `${cards.length} kartta guncel bakiye` },
-    { label: "Kart sayisi", value: String(cards.length), note: "Eklenen aktif kart" },
-    { label: "Kullanilabilir limit", value: formatCurrency(totals.availableLimit), note: `Toplam limit ${formatCurrency(totals.totalLimit)}` },
-    { label: "Ortalama kullanim", value: `%${totals.utilization}`, note: totals.utilization < 50 ? "Risk seviyesi dusuk" : "Kontrol gerekli" },
+    { label: "Toplam borç", value: formatCurrency(totals.totalDebt), note: `${cards.length} kartta güncel bakiye` },
+    { label: "Kart sayısı", value: String(cards.length), note: "Eklenen aktif kart" },
+    { label: "Kullanılabilir limit", value: formatCurrency(totals.availableLimit), note: `Toplam limit ${formatCurrency(totals.totalLimit)}` },
+    { label: "Ortalama kullanım", value: `%${totals.utilization}`, note: totals.utilization < 50 ? "Risk seviyesi düşük" : "Kontrol gerekli" },
   ];
 
   const payments = makePayments(cards);
@@ -170,6 +175,10 @@ export default function Home() {
     const safeValue = field === "last4" ? value.replace(/\D/g, "").slice(0, 4) : value;
     setForm((current) => ({ ...current, [field]: safeValue }));
     setFormError("");
+  }
+
+  function formatFormMoney(field: "debt" | "limit") {
+    setForm((current) => ({ ...current, [field]: formatMoneyInput(current[field]) }));
   }
 
   function openAddCard() {
@@ -217,17 +226,17 @@ export default function Home() {
     const limit = parseMoney(form.limit);
 
     if (!bank) {
-      setFormError("Banka adi gerekli.");
+      setFormError("Banka adı gerekli.");
       return;
     }
 
     if (!name) {
-      setFormError("Kart adi gerekli.");
+      setFormError("Kart adı gerekli.");
       return;
     }
 
     if (last4.length !== 4) {
-      setFormError("Son 4 hane tam olarak 4 rakam olmali.");
+      setFormError("Son 4 hane tam olarak 4 rakam olmalı.");
       return;
     }
 
@@ -254,6 +263,7 @@ export default function Home() {
     setEditingCardId(null);
     setIsCardModalOpen(false);
   }
+
   function removeCard(cardId: string) {
     setCards((current) => current.filter((card) => card.id !== cardId));
   }
@@ -268,45 +278,45 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-[#080b10] text-slate-100">
+    <main className="min-h-screen bg-slate-50 text-slate-950">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-5 sm:px-6 lg:px-8">
-        <header className="flex flex-col gap-4 border-b border-white/10 pb-5 md:flex-row md:items-end md:justify-between">
+        <header className="flex flex-col gap-4 border-b border-slate-200 pb-5 md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="text-sm font-medium text-cyan-200">Cuzdan v0.7</p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-normal text-white sm:text-4xl">
+            <p className="text-sm font-medium text-teal-700">Cüzdan v0.8</p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-normal text-slate-950 sm:text-4xl">
               Kart takip paneli
             </h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">
-              Kartlarini takip et, odeme tarihlerini kacirma, hassas kart bilgilerini sisteme alma.
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
+              Kartlarını takip et, ödeme tarihlerini kaçırma, hassas kart bilgilerini sisteme alma.
             </p>
           </div>
           <div className="flex flex-wrap gap-2 text-sm">
-            <button type="button" onClick={openAddCard} className="rounded-md bg-cyan-300 px-4 py-2 font-semibold text-slate-950 transition hover:bg-cyan-200">
+            <button type="button" onClick={openAddCard} className="rounded-md bg-teal-600 px-4 py-2 font-semibold text-white transition hover:bg-teal-700">
               Kart ekle
             </button>
-            <button type="button" onClick={clearCards} className="rounded-md border border-white/10 px-4 py-2 text-slate-300 transition hover:bg-white/10">
-              Tum kartlari temizle
+            <button type="button" onClick={clearCards} className="rounded-md border border-slate-200 bg-white px-4 py-2 text-slate-700 transition hover:bg-slate-100">
+              Tüm kartları temizle
             </button>
           </div>
         </header>
 
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {summary.map((item) => (
-            <article key={item.label} className="rounded-lg border border-white/10 bg-white/[0.04] p-4 shadow-2xl shadow-black/20">
-              <p className="text-sm text-slate-400">{item.label}</p>
-              <p className="mt-3 text-2xl font-semibold text-white">{item.value}</p>
+            <article key={item.label} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+              <p className="text-sm text-slate-500">{item.label}</p>
+              <p className="mt-3 text-2xl font-semibold text-slate-950">{item.value}</p>
               <p className="mt-2 text-sm text-slate-500">{item.note}</p>
             </article>
           ))}
         </section>
 
-        <section className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
+        <section className="rounded-lg border border-teal-100 bg-teal-50 p-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <h2 className="text-base font-semibold text-white">Guvenli takip modeli</h2>
-              <p className="mt-1 text-sm text-slate-500">Banka sifresi, PIN, CVV veya tam kart numarasi istemiyoruz. Kart kimligi icin yalnizca son 4 hane tutulur.</p>
+              <h2 className="text-base font-semibold text-slate-950">Güvenli takip modeli</h2>
+              <p className="mt-1 text-sm text-slate-600">Banka şifresi, PIN, CVV veya tam kart numarası istemiyoruz. Kart kimliği için yalnızca son 4 hane tutulur.</p>
             </div>
-            <span className="w-fit rounded-md border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-sm text-emerald-100">
+            <span className="w-fit rounded-md border border-teal-200 bg-white px-3 py-2 text-sm text-teal-700">
               Hassas veri yok
             </span>
           </div>
@@ -315,7 +325,7 @@ export default function Home() {
         <section className="grid gap-6 lg:grid-cols-[1.35fr_0.85fr]">
           <div className="space-y-4">
             <div className="flex items-center justify-between gap-4">
-              <h2 className="text-lg font-semibold text-white">Kartlar</h2>
+              <h2 className="text-lg font-semibold text-slate-950">Kartlar</h2>
               <p className="text-sm text-slate-500">{cards.length} aktif kart</p>
             </div>
             {cards.length > 0 ? (
@@ -324,45 +334,45 @@ export default function Home() {
                   const utilization = getUtilization(card);
 
                   return (
-                    <article key={card.id} className="overflow-hidden rounded-lg border border-white/10 bg-slate-950">
+                    <article key={card.id} className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
                       <div className={`bg-gradient-to-br ${card.color} p-4 text-white`}>
                         <div className="flex items-start justify-between gap-4">
                           <div>
-                            <p className="text-sm font-medium text-white/80">{card.bank}</p>
+                            <p className="text-sm font-medium text-white/85">{card.bank}</p>
                             <h3 className="mt-1 text-lg font-semibold">{card.name}</h3>
                           </div>
                           <span className="rounded-md bg-black/20 px-2 py-1 text-xs font-medium">*{card.last4}</span>
                         </div>
                         <div className="mt-8 flex items-end justify-between gap-3">
                           <div>
-                            <p className="text-xs text-white/75">Guncel borc</p>
+                            <p className="text-xs text-white/80">Güncel borç</p>
                             <p className="text-2xl font-semibold">{formatCurrency(card.debt)}</p>
                           </div>
-                          <div className="text-right text-sm text-white/80">
+                          <div className="text-right text-sm text-white/85">
                             <p>SKT: {card.expiryDate}</p>
-                            <p>Odeme: {card.dueDate}</p>
+                            <p>Ödeme: {card.dueDate}</p>
                           </div>
                         </div>
                       </div>
                       <div className="space-y-4 p-4">
                         <div className="flex justify-between text-sm">
-                          <span className="text-slate-400">Limit</span>
-                          <span className="font-medium text-slate-100">{formatCurrency(card.limit)}</span>
+                          <span className="text-slate-500">Limit</span>
+                          <span className="font-medium text-slate-900">{formatCurrency(card.limit)}</span>
                         </div>
                         <div>
                           <div className="mb-2 flex justify-between text-xs text-slate-500">
-                            <span>Kullanim</span>
+                            <span>Kullanım</span>
                             <span>%{utilization}</span>
                           </div>
-                          <div className="h-2 rounded-full bg-white/10">
-                            <div className="h-2 rounded-full bg-cyan-300" style={{ width: `${utilization}%` }} />
+                          <div className="h-2 rounded-full bg-slate-100">
+                            <div className="h-2 rounded-full bg-teal-500" style={{ width: `${utilization}%` }} />
                           </div>
                         </div>
                         <div className="grid grid-cols-2 gap-2">
-                          <button type="button" onClick={() => openEditCard(card)} className="rounded-md border border-cyan-300/20 px-3 py-2 text-sm text-cyan-100 transition hover:bg-cyan-400/10">
-                            Duzenle
+                          <button type="button" onClick={() => openEditCard(card)} className="rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-100">
+                            Düzenle
                           </button>
-                          <button type="button" onClick={() => removeCard(card.id)} className="rounded-md border border-rose-300/20 px-3 py-2 text-sm text-rose-100 transition hover:bg-rose-400/10">
+                          <button type="button" onClick={() => removeCard(card.id)} className="rounded-md border border-rose-200 px-3 py-2 text-sm text-rose-700 transition hover:bg-rose-50">
                             Sil
                           </button>
                         </div>
@@ -372,109 +382,109 @@ export default function Home() {
                 })}
               </div>
             ) : (
-              <div className="rounded-lg border border-dashed border-white/15 bg-white/[0.03] p-8 text-center text-sm text-slate-500">
-                Henuz kart yok. Ilk kartini ekleyerek baslayabilirsin.
+              <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
+                Henüz kart yok. İlk kartını ekleyerek başlayabilirsin.
               </div>
             )}
           </div>
 
           <aside className="space-y-4">
             <div className="flex items-center justify-between gap-4">
-              <h2 className="text-lg font-semibold text-white">Yaklasan odemeler</h2>
-              <p className="text-sm text-slate-500">DD/MM</p>
+              <h2 className="text-lg font-semibold text-slate-950">Yaklaşan ödemeler</h2>
+              <p className="text-sm text-slate-500">GG/AA</p>
             </div>
-            <div className="rounded-lg border border-white/10 bg-white/[0.04]">
+            <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
               {payments.length > 0 ? payments.map((payment, index) => (
-                <div key={payment.id} className={`flex items-center justify-between gap-4 p-4 ${index !== payments.length - 1 ? "border-b border-white/10" : ""}`}>
+                <div key={payment.id} className={`flex items-center justify-between gap-4 p-4 ${index !== payments.length - 1 ? "border-b border-slate-100" : ""}`}>
                   <div>
-                    <p className="font-medium text-white">{payment.card}</p>
-                    <p className="mt-1 text-sm text-slate-500">Son odeme: {payment.date}</p>
+                    <p className="font-medium text-slate-950">{payment.card}</p>
+                    <p className="mt-1 text-sm text-slate-500">Son ödeme: {payment.date}</p>
                   </div>
                   <span className={`inline-flex rounded-md px-2 py-1 text-xs font-medium ring-1 ${statusStyles[payment.status]}`}>
                     {payment.status}
                   </span>
                 </div>
               )) : (
-                <div className="p-5 text-sm text-slate-500">Odeme takibi icin kart ekle.</div>
+                <div className="p-5 text-sm text-slate-500">Ödeme takibi için kart ekle.</div>
               )}
             </div>
           </aside>
         </section>
 
-        <section className="rounded-lg border border-white/10 bg-white/[0.04] p-5">
-          <h2 className="text-lg font-semibold text-white">Son islemler</h2>
-          <p className="mt-3 text-sm text-slate-500">Henuz islem yok. Bir sonraki adimda kartlara harcama ekleme ekranini baglayacagiz.</p>
+        <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 className="text-lg font-semibold text-slate-950">Son işlemler</h2>
+          <p className="mt-3 text-sm text-slate-500">Henüz işlem yok. Bir sonraki adımda kartlara harcama ekleme ekranını bağlayacağız.</p>
         </section>
       </div>
 
       {isCardModalOpen ? (
-        <div className="fixed inset-0 z-50 flex items-end bg-black/70 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center">
-          <form onSubmit={saveCard} className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-white/10 bg-[#0d121a] p-5 shadow-2xl shadow-black/60">
-            <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-4">
+        <div className="fixed inset-0 z-50 flex items-end bg-slate-950/35 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center">
+          <form onSubmit={saveCard} className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-slate-200 bg-white p-5 shadow-2xl shadow-slate-400/30">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-4">
               <div>
-                <h2 className="text-lg font-semibold text-white">{editingCardId ? "Karti duzenle" : "Kart ekle"}</h2>
-                <p className="mt-1 text-sm text-slate-500">Zorunlu alanlar: banka, kart adi ve son 4 hane.</p>
+                <h2 className="text-lg font-semibold text-slate-950">{editingCardId ? "Kartı düzenle" : "Kart ekle"}</h2>
+                <p className="mt-1 text-sm text-slate-500">Zorunlu alanlar: banka, kart adı ve son 4 hane.</p>
               </div>
-              <button type="button" onClick={closeCardModal} className="rounded-md border border-white/10 px-3 py-2 text-sm text-slate-300 transition hover:bg-white/10" aria-label="Kapat">
+              <button type="button" onClick={closeCardModal} className="rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-100" aria-label="Kapat">
                 Kapat
               </button>
             </div>
 
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <label className="space-y-2 text-sm text-slate-300">
+              <label className="space-y-2 text-sm text-slate-700">
                 <span>Banka</span>
-                <input value={form.bank} onChange={(event) => updateForm("bank", event.target.value)} placeholder="Garanti BBVA" className="w-full rounded-md border border-white/10 bg-slate-950 px-3 py-3 text-white outline-none transition placeholder:text-slate-700 focus:border-cyan-300/60" />
+                <input value={form.bank} onChange={(event) => updateForm("bank", event.target.value)} placeholder="Garanti BBVA" className="w-full rounded-md border border-slate-200 bg-white px-3 py-3 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-teal-500" />
               </label>
-              <label className="space-y-2 text-sm text-slate-300">
-                <span>Kart adi</span>
-                <input value={form.name} onChange={(event) => updateForm("name", event.target.value)} placeholder="Bonus Platinum" className="w-full rounded-md border border-white/10 bg-slate-950 px-3 py-3 text-white outline-none transition placeholder:text-slate-700 focus:border-cyan-300/60" />
+              <label className="space-y-2 text-sm text-slate-700">
+                <span>Kart adı</span>
+                <input value={form.name} onChange={(event) => updateForm("name", event.target.value)} placeholder="Bonus Platinum" className="w-full rounded-md border border-slate-200 bg-white px-3 py-3 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-teal-500" />
               </label>
-              <label className="space-y-2 text-sm text-slate-300">
+              <label className="space-y-2 text-sm text-slate-700">
                 <span>Son 4 hane</span>
-                <input value={form.last4} onChange={(event) => updateForm("last4", event.target.value)} inputMode="numeric" maxLength={4} placeholder="4821" className="w-full rounded-md border border-white/10 bg-slate-950 px-3 py-3 text-white outline-none transition placeholder:text-slate-700 focus:border-cyan-300/60" />
+                <input value={form.last4} onChange={(event) => updateForm("last4", event.target.value)} inputMode="numeric" maxLength={4} placeholder="4821" className="w-full rounded-md border border-slate-200 bg-white px-3 py-3 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-teal-500" />
               </label>
-              <div className="space-y-2 text-sm text-slate-300">
+              <div className="space-y-2 text-sm text-slate-700">
                 <span>Son kullanma tarihi</span>
                 <div className="grid grid-cols-2 gap-2">
-                  <select value={form.expiryMonth} onChange={(event) => updateForm("expiryMonth", event.target.value)} className="w-full rounded-md border border-white/10 bg-slate-950 px-3 py-3 text-white outline-none transition focus:border-cyan-300/60">
+                  <select value={form.expiryMonth} onChange={(event) => updateForm("expiryMonth", event.target.value)} className="w-full rounded-md border border-slate-200 bg-white px-3 py-3 text-slate-950 outline-none transition focus:border-teal-500">
                     {months.map((month) => <option key={month} value={month}>{month}</option>)}
                   </select>
-                  <select value={form.expiryYear} onChange={(event) => updateForm("expiryYear", event.target.value)} className="w-full rounded-md border border-white/10 bg-slate-950 px-3 py-3 text-white outline-none transition focus:border-cyan-300/60">
+                  <select value={form.expiryYear} onChange={(event) => updateForm("expiryYear", event.target.value)} className="w-full rounded-md border border-slate-200 bg-white px-3 py-3 text-slate-950 outline-none transition focus:border-teal-500">
                     {years.map((year) => <option key={year} value={year}>{year}</option>)}
                   </select>
                 </div>
-                <p className="text-xs text-slate-600">Format: {form.expiryMonth}/{form.expiryYear}</p>
+                <p className="text-xs text-slate-400">Format: {form.expiryMonth}/{form.expiryYear}</p>
               </div>
-              <div className="space-y-2 text-sm text-slate-300">
-                <span>Son odeme tarihi</span>
+              <div className="space-y-2 text-sm text-slate-700">
+                <span>Son ödeme tarihi</span>
                 <div className="grid grid-cols-2 gap-2">
-                  <select value={form.dueDay} onChange={(event) => updateForm("dueDay", event.target.value)} className="w-full rounded-md border border-white/10 bg-slate-950 px-3 py-3 text-white outline-none transition focus:border-cyan-300/60">
+                  <select value={form.dueDay} onChange={(event) => updateForm("dueDay", event.target.value)} className="w-full rounded-md border border-slate-200 bg-white px-3 py-3 text-slate-950 outline-none transition focus:border-teal-500">
                     {days.map((day) => <option key={day} value={day}>{day}</option>)}
                   </select>
-                  <select value={form.dueMonth} onChange={(event) => updateForm("dueMonth", event.target.value)} className="w-full rounded-md border border-white/10 bg-slate-950 px-3 py-3 text-white outline-none transition focus:border-cyan-300/60">
+                  <select value={form.dueMonth} onChange={(event) => updateForm("dueMonth", event.target.value)} className="w-full rounded-md border border-slate-200 bg-white px-3 py-3 text-slate-950 outline-none transition focus:border-teal-500">
                     {months.map((month) => <option key={month} value={month}>{month}</option>)}
                   </select>
                 </div>
-                <p className="text-xs text-slate-600">Format: {form.dueDay}/{form.dueMonth}</p>
+                <p className="text-xs text-slate-400">Format: {form.dueDay}/{form.dueMonth}</p>
               </div>
-              <label className="space-y-2 text-sm text-slate-300">
+              <label className="space-y-2 text-sm text-slate-700">
                 <span>Limit</span>
-                <input value={form.limit} onChange={(event) => updateForm("limit", event.target.value)} inputMode="decimal" placeholder="Bos birakilabilir" className="w-full rounded-md border border-white/10 bg-slate-950 px-3 py-3 text-white outline-none transition placeholder:text-slate-700 focus:border-cyan-300/60" />
+                <input value={form.limit} onChange={(event) => updateForm("limit", event.target.value)} onBlur={() => formatFormMoney("limit")} inputMode="decimal" placeholder="14.568,00 TL" className="w-full rounded-md border border-slate-200 bg-white px-3 py-3 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-teal-500" />
               </label>
-              <label className="space-y-2 text-sm text-slate-300 sm:col-span-2">
-                <span>Guncel borc</span>
-                <input value={form.debt} onChange={(event) => updateForm("debt", event.target.value)} inputMode="decimal" placeholder="Bos birakilabilir" className="w-full rounded-md border border-white/10 bg-slate-950 px-3 py-3 text-white outline-none transition placeholder:text-slate-700 focus:border-cyan-300/60" />
+              <label className="space-y-2 text-sm text-slate-700 sm:col-span-2">
+                <span>Güncel borç</span>
+                <input value={form.debt} onChange={(event) => updateForm("debt", event.target.value)} onBlur={() => formatFormMoney("debt")} inputMode="decimal" placeholder="14.568,00 TL" className="w-full rounded-md border border-slate-200 bg-white px-3 py-3 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-teal-500" />
               </label>
             </div>
 
-            {formError ? <p className="mt-4 rounded-md border border-rose-300/20 bg-rose-400/10 px-3 py-2 text-sm text-rose-100">{formError}</p> : null}
+            {formError ? <p className="mt-4 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{formError}</p> : null}
 
             <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <button type="button" onClick={closeCardModal} className="rounded-md border border-white/10 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:bg-white/10">
-                Vazgec
+              <button type="button" onClick={closeCardModal} className="rounded-md border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">
+                Vazgeç
               </button>
-              <button type="submit" className="rounded-md bg-cyan-300 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200">
-                {editingCardId ? "Degisiklikleri kaydet" : "Karti kaydet"}
+              <button type="submit" className="rounded-md bg-teal-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-teal-700">
+                {editingCardId ? "Değişiklikleri kaydet" : "Kartı kaydet"}
               </button>
             </div>
           </form>
