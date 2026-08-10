@@ -494,33 +494,61 @@ export default function Home() {
 
             {activeTab === "summary" ? (
               <div className="space-y-5">
-                <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  <article className="kt-card rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-                    <p className="text-sm text-slate-500">G&#252;nl&#252;k harcama</p>
-                    <p className="mt-3 text-2xl font-semibold text-slate-950">{money(totals.expense)}</p>
-                    <div className="mt-4 flex h-16 items-end gap-1">
+                <section className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+                  <article className="kt-card rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                    <div className="grid gap-4 sm:grid-cols-[1fr_180px] sm:items-start">
+                      <div>
+                        <p className="text-sm text-slate-500">G&#252;nl&#252;k harcama</p>
+                        <p className="mt-2 text-2xl font-semibold text-slate-950">{money(totals.expense)}</p>
+                        <p className="mt-1 text-xs text-slate-500">Bu ay&#305;n g&#252;nl&#252;k gider da&#287;&#305;l&#305;m&#305;</p>
+                      </div>
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                        <p className="text-xs font-medium uppercase tracking-normal text-slate-500">C&#252;zdan</p>
+                        <p className="mt-2 text-xl font-semibold text-slate-950">{money(cash)}</p>
+                        <p className="mt-1 text-xs text-slate-500">Eldeki nakit para</p>
+                      </div>
+                    </div>
+                    <div className="mt-5 flex h-16 items-end gap-1.5 overflow-hidden rounded-md border border-slate-200 bg-slate-50 px-2 pb-2 pt-3">
                       {dailyExpenses.map((item) => (
                         <span
                           key={item.day}
                           title={`${item.day}: ${money(item.amount)}`}
-                          className="min-h-1 flex-1 rounded-t bg-teal-500/80"
-                          style={{ height: `${Math.max(6, (item.amount / maxDailyExpense) * 64)}px` }}
+                          className="min-h-1 flex-1 rounded-t bg-teal-500/85"
+                          style={{ height: `${Math.max(6, (item.amount / maxDailyExpense) * 48)}px` }}
                         />
                       ))}
                     </div>
-                    <p className="mt-2 text-xs text-slate-500">Bu ay&#305;n g&#252;nl&#252;k gider da&#287;&#305;l&#305;m&#305;</p>
                   </article>
-                  {[
-                    ["Nakit kasa", money(cash), "Eldeki nakit para"],
-                    ["Ayl\u0131k giri\u015f / \u00e7\u0131k\u0131\u015f", money(totals.net), `${money(totals.income)} giri\u015f, ${money(totals.expense)} \u00e7\u0131k\u0131\u015f`],
-                    ["Toplam kart borcu", money(totals.totalDebt), `${cards.length} kartta g\u00fcncel bakiye`],
-                  ].map(([label, value, note]) => (
-                    <article key={label} className="kt-card rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-                      <p className="text-sm text-slate-500">{label}</p>
-                      <p className="mt-3 text-2xl font-semibold text-slate-950">{value}</p>
-                      <p className="mt-2 text-sm text-slate-500">{note}</p>
-                    </article>
-                  ))}
+
+                  <article className="kt-card rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm text-slate-500">Toplam kart borcu</p>
+                        <p className="mt-2 text-2xl font-semibold text-slate-950">{money(totals.totalDebt)}</p>
+                        <p className="mt-1 text-sm text-slate-500">{cards.length} kartta g&#252;ncel bakiye</p>
+                      </div>
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-right">
+                        <p className="text-xs text-slate-500">Bo&#351; limit</p>
+                        <p className="text-sm font-semibold text-slate-950">{money(totals.availableLimit)}</p>
+                      </div>
+                    </div>
+                    <div className="mt-4 space-y-3">
+                      {cards.length > 0 ? cards.map((card) => {
+                        const usage = card.limit > 0 ? Math.min(100, Math.round((card.debt / card.limit) * 100)) : 0;
+                        return (
+                          <div key={card.id}>
+                            <div className="mb-1 flex items-center justify-between gap-3 text-xs">
+                              <span className="truncate font-medium text-slate-700">{card.name}</span>
+                              <span className="shrink-0 text-slate-500">%{usage}</span>
+                            </div>
+                            <div className="h-2 rounded-full bg-slate-100">
+                              <span className="block h-2 rounded-full bg-blue-500" style={{ width: `${usage}%` }} />
+                            </div>
+                          </div>
+                        );
+                      }) : <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-500">Kart ekledi&#287;inde doluluk oranlar&#305; burada g&#246;r&#252;n&#252;r.</p>}
+                    </div>
+                  </article>
                 </section>
 
                 <section className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
@@ -528,14 +556,14 @@ export default function Home() {
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <h2 className="text-lg font-semibold text-slate-950">Ayl&#305;k giri&#351; / &#231;&#305;k&#305;&#351;</h2>
-                        <p className="mt-1 text-sm text-slate-500">Gelir ve gider karÅŸÄ±laÅŸtÄ±rmasÄ±</p>
+                        <p className="mt-1 text-sm text-slate-500">Gelir ve gider kar&#351;&#305;la&#351;t&#305;rmas&#305;</p>
                       </div>
                       <span className={`rounded-md px-2 py-1 text-xs font-medium ${totals.net >= 0 ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200" : "bg-rose-50 text-rose-700 ring-1 ring-rose-200"}`}>
                         Net {money(totals.net)}
                       </span>
                     </div>
                     <div className="mt-5 grid gap-4">
-                      <MetricBar label="Para giriÅŸi" value={totals.income} percent={incomePercent} tone="income" />
+                      <MetricBar label={"Para giri\u015fi"} value={totals.income} percent={incomePercent} tone="income" />
                       <MetricBar label="Harcama" value={totals.expense} percent={expensePercent} tone="expense" />
                     </div>
                   </article>
@@ -543,8 +571,8 @@ export default function Home() {
                   <article className="kt-card rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                     <div className="flex items-start justify-between gap-4">
                       <div>
-                        <h2 className="text-lg font-semibold text-slate-950">Kart harcamalarÄ±</h2>
-                        <p className="mt-1 text-sm text-slate-500">Kategori bazÄ±nda daÄŸÄ±lÄ±m</p>
+                        <h2 className="text-lg font-semibold text-slate-950">Kart harcamalar&#305;</h2>
+                        <p className="mt-1 text-sm text-slate-500">Kategori baz&#305;nda da&#287;&#305;l&#305;m</p>
                       </div>
                       <span className="rounded-md bg-slate-50 px-2 py-1 text-xs font-medium text-slate-600">{money(cardExpenseTotal)}</span>
                     </div>

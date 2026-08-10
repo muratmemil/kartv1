@@ -140,11 +140,11 @@ button {
     grid-column: 1 / -1;
   }
 
-  nav[aria-label="Mobil menÃ¼"] {
+  nav[aria-label="Mobil men\00fc"] {
     padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
   }
 
-  nav[aria-label="Mobil menÃ¼"] button {
+  nav[aria-label="Mobil men\00fc"] button {
     min-height: 2.75rem;
     white-space: nowrap;
     font-size: 0.72rem;
@@ -166,7 +166,7 @@ button {
 }
 
 @media (min-width: 1024px) {
-  aside nav[aria-label="Ana menÃ¼"] {
+  aside nav[aria-label="Ana men\00fc"] {
     box-shadow: 0 1px 2px rgba(4, 32, 69, 0.08);
   }
 }
