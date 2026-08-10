@@ -200,3 +200,59 @@ form label {
     padding: 1rem !important;
   }
 }
+/* Tailwind grid guard: Tabler also defines .grid, so keep our utility layout intact. */
+.grid {
+  display: grid !important;
+}
+
+.grid-cols-6 {
+  grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+}
+
+.grid-cols-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+
+.grid-cols-\[56px_1fr_1fr_1fr\] {
+  grid-template-columns: 56px minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) !important;
+}
+
+@media (min-width: 640px) {
+  .sm\:grid-cols-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (min-width: 768px) {
+  .md\:grid-cols-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  .lg\:grid-cols-\[220px_1fr\] {
+    grid-template-columns: 220px minmax(0, 1fr) !important;
+  }
+
+  .lg\:grid-cols-\[0\.9fr_1\.1fr\] {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr) !important;
+  }
+
+  .lg\:grid-cols-\[0\.85fr_1\.15fr\] {
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr) !important;
+  }
+
+  .lg\:grid-cols-\[1fr_1fr\] {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (min-width: 1280px) {
+  .xl\:grid-cols-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  .xl\:grid-cols-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+}

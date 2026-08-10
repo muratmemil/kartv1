@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import "./globals.css";
 import "../public/vendor/tabler/tabler.min.css";
 import "../public/vendor/tabler/tabler-vendors.min.css";
+import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Kart Takip",
