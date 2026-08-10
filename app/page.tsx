@@ -682,86 +682,133 @@ function CardTile({
 }) {
   const [open, setOpen] = useState(false);
   const maskedNumber = `1234 1234 1234 ${card.last4}`;
+  const flipClass = open ? "[transform:rotateY(180deg)]" : "group-hover:[transform:rotateY(180deg)] group-focus-within:[transform:rotateY(180deg)]";
 
   return (
-    <div className="group relative overflow-visible rounded-[22px] pb-16 focus-within:z-20 hover:z-20">
-      <article
-        role="button"
-        tabIndex={0}
-        onClick={() => setOpen((current) => !current)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            setOpen((current) => !current);
-          }
-        }}
-        className={`relative aspect-[1.72/1] cursor-pointer overflow-hidden rounded-[22px] bg-gradient-to-br ${card.color} p-5 text-white shadow-[0_16px_35px_rgba(15,23,42,0.18)] ring-1 ring-white/20 transition group-hover:-translate-y-1 group-hover:shadow-[0_22px_45px_rgba(15,23,42,0.22)]`}
-      >
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_18%,rgba(255,255,255,0.20),transparent_24%),linear-gradient(135deg,rgba(15,23,42,0.30),rgba(15,23,42,0.08)_42%,rgba(255,255,255,0.08))]" />
-        <div className="relative flex h-full flex-col justify-between">
-          <div className="flex items-start justify-between gap-3">
+    <div className="group relative z-0 rounded-[22px] [perspective:1200px] hover:z-20 focus-within:z-20">
+      <div className={`relative aspect-[1.72/1] rounded-[22px] transition duration-500 [transform-style:preserve-3d] ${flipClass}`}>
+        <article
+          role="button"
+          tabIndex={0}
+          onClick={() => setOpen((current) => !current)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              setOpen((current) => !current);
+            }
+          }}
+          className={`absolute inset-0 cursor-pointer overflow-hidden rounded-[22px] bg-gradient-to-br ${card.color} p-5 text-white shadow-[0_16px_35px_rgba(15,23,42,0.18)] ring-1 ring-white/20 transition group-hover:-translate-y-1 group-hover:shadow-[0_22px_45px_rgba(15,23,42,0.22)] [backface-visibility:hidden]`}
+        >
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_18%,rgba(255,255,255,0.20),transparent_24%),linear-gradient(135deg,rgba(15,23,42,0.30),rgba(15,23,42,0.08)_42%,rgba(255,255,255,0.08))]" />
+          <div className="relative flex h-full flex-col justify-between">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-white/75">{card.bank}</p>
+                <h3 className="mt-1 text-base font-semibold">{card.name}</h3>
+              </div>
+              <ContactlessMark />
+            </div>
+
+            <Chip />
+
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-white/75">{card.bank}</p>
-              <h3 className="mt-1 text-base font-semibold">{card.name}</h3>
-            </div>
-            <div className="relative h-7 w-7">
-              <span className="absolute right-0 top-1 h-5 w-5 rounded-full border-2 border-white/85" />
-              <span className="absolute right-1 top-0 h-7 w-7 rounded-full border-2 border-white/65" />
-              <span className="absolute right-2 -top-1 h-9 w-9 rounded-full border-2 border-white/40" />
-            </div>
-          </div>
-
-          <div className="grid h-8 w-10 place-items-center rounded-md bg-white/90 shadow-sm">
-            <div className="grid grid-cols-2 gap-0.5">
-              <span className="h-2.5 w-3 rounded-[2px] bg-slate-300" />
-              <span className="h-2.5 w-3 rounded-[2px] bg-slate-300" />
-              <span className="h-2.5 w-3 rounded-[2px] bg-slate-300" />
-              <span className="h-2.5 w-3 rounded-[2px] bg-slate-300" />
-            </div>
-          </div>
-
-          <div>
-            <div className="mb-2 grid grid-cols-[1fr_auto] items-end gap-3 text-[10px] uppercase tracking-wide text-white/75">
-              <span>{card.name}</span>
-              <span>{card.expiryDate}</span>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <p className="font-mono text-[clamp(0.9rem,3.8vw,1.08rem)] tracking-[0.08em] text-white">{maskedNumber}</p>
-              <div className="relative h-7 w-11 shrink-0 rounded-md bg-white/15">
-                <span className="absolute left-2 top-1.5 h-4 w-4 rounded-full bg-red-500" />
-                <span className="absolute left-5 top-1.5 h-4 w-4 rounded-full bg-amber-400 mix-blend-screen" />
+              <div className="mb-2 grid grid-cols-[1fr_auto] items-end gap-3 text-[10px] uppercase tracking-wide text-white/75">
+                <span>{card.name}</span>
+                <span>{card.expiryDate}</span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <p className="font-mono text-[clamp(0.9rem,3.8vw,1.08rem)] tracking-[0.08em] text-white">{maskedNumber}</p>
+                <CardBrandMark />
               </div>
             </div>
           </div>
-        </div>
-      </article>
-      <div className={`absolute inset-x-3 top-[78%] z-10 rounded-xl border border-slate-200 bg-white p-4 text-slate-950 shadow-xl transition ${open ? "pointer-events-auto translate-y-0 opacity-100" : "pointer-events-none translate-y-3 opacity-0 group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:translate-y-0 group-focus-within:opacity-100"}`}>
-        <div className="grid gap-3 text-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-slate-500">Limit</span>
-            <span className="font-semibold">{money(card.limit)}</span>
+        </article>
+
+        <article
+          role="button"
+          tabIndex={0}
+          onClick={() => setOpen((current) => !current)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              setOpen((current) => !current);
+            }
+          }}
+          className={`absolute inset-0 cursor-pointer overflow-hidden rounded-[22px] bg-gradient-to-br ${card.color} p-4 text-white shadow-[0_22px_45px_rgba(15,23,42,0.22)] ring-1 ring-white/25 [backface-visibility:hidden] [transform:rotateY(180deg)]`}
+        >
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(255,255,255,0.22),transparent_24%),linear-gradient(135deg,rgba(15,23,42,0.24),rgba(15,23,42,0.08)_48%,rgba(255,255,255,0.10))]" />
+          <div className="relative flex h-full flex-col justify-between">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-white/75">{card.bank}</p>
+                <h3 className="mt-1 text-base font-semibold">{card.name}</h3>
+              </div>
+              <ContactlessMark />
+            </div>
+
+            <div className="rounded-2xl border border-white/30 bg-white/18 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_18px_40px_rgba(15,23,42,0.18)] backdrop-blur-md">
+              <div className="grid gap-2 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-white/75">Limit</span>
+                  <span className="font-semibold">{money(card.limit)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-white/75">G&#252;ncel bor&#231;</span>
+                  <span className="font-semibold">{money(card.debt)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-white/75">Kullan&#305;m</span>
+                  <span className="font-semibold">%{usage}</span>
+                </div>
+                <div className="h-2 rounded-full bg-white/25">
+                  <div className="h-2 rounded-full bg-white" style={{ width: `${usage}%` }} />
+                </div>
+                <div className="grid grid-cols-2 gap-2 pt-1 text-xs text-white/75">
+                  <span>SKT: {card.expiryDate}</span>
+                  <span className="text-right">&#214;deme: {card.dueDate}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" onClick={(event) => { event.stopPropagation(); onEdit(); }} className="rounded-md bg-white/90 px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-white">D&#252;zenle</button>
+              <button type="button" onClick={(event) => { event.stopPropagation(); onDelete(); }} className="rounded-md bg-rose-500/90 px-3 py-2 text-sm font-semibold text-white hover:bg-rose-500">Sil</button>
+            </div>
           </div>
-          <div className="flex items-center justify-between">
-            <span className="text-slate-500">G&#252;ncel bor&#231;</span>
-            <span className="font-semibold">{money(card.debt)}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-slate-500">Kullan&#305;m</span>
-            <span className="font-semibold">%{usage}</span>
-          </div>
-          <div className="h-2 rounded-full bg-slate-100">
-            <div className="h-2 rounded-full bg-teal-500" style={{ width: `${usage}%` }} />
-          </div>
-          <div className="grid grid-cols-2 gap-2 text-xs text-slate-500">
-            <span>SKT: {card.expiryDate}</span>
-            <span className="text-right">&#214;deme: {card.dueDate}</span>
-          </div>
-          <div className="grid grid-cols-2 gap-2 pt-1">
-            <button type="button" onClick={(event) => { event.stopPropagation(); onEdit(); }} className="rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">D&#252;zenle</button>
-            <button type="button" onClick={(event) => { event.stopPropagation(); onDelete(); }} className="rounded-md border border-rose-200 px-3 py-2 text-sm text-rose-700 hover:bg-rose-50">Sil</button>
-          </div>
-        </div>
+        </article>
       </div>
+    </div>
+  );
+}
+
+function ContactlessMark() {
+  return (
+    <div className="relative h-7 w-7">
+      <span className="absolute right-0 top-1 h-5 w-5 rounded-full border-2 border-white/85" />
+      <span className="absolute right-1 top-0 h-7 w-7 rounded-full border-2 border-white/65" />
+      <span className="absolute right-2 -top-1 h-9 w-9 rounded-full border-2 border-white/40" />
+    </div>
+  );
+}
+
+function Chip() {
+  return (
+    <div className="grid h-8 w-10 place-items-center rounded-md bg-white/90 shadow-sm">
+      <div className="grid grid-cols-2 gap-0.5">
+        <span className="h-2.5 w-3 rounded-[2px] bg-slate-300" />
+        <span className="h-2.5 w-3 rounded-[2px] bg-slate-300" />
+        <span className="h-2.5 w-3 rounded-[2px] bg-slate-300" />
+        <span className="h-2.5 w-3 rounded-[2px] bg-slate-300" />
+      </div>
+    </div>
+  );
+}
+
+function CardBrandMark() {
+  return (
+    <div className="relative h-7 w-11 shrink-0 rounded-md bg-white/15">
+      <span className="absolute left-2 top-1.5 h-4 w-4 rounded-full bg-red-500" />
+      <span className="absolute left-5 top-1.5 h-4 w-4 rounded-full bg-amber-400 mix-blend-screen" />
     </div>
   );
 }
