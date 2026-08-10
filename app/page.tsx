@@ -8,10 +8,20 @@ type Card = {
   name: string;
   last4: string;
   expiryDate: string;
-  color: string;
-  debt: number;
-  limit: number;
   dueDate: string;
+  limit: number;
+  debt: number;
+  color: string;
+};
+
+type Movement = {
+  id: string;
+  type: "expense" | "income";
+  source: "cash" | string;
+  amount: number;
+  category: string;
+  note: string;
+  date: string;
 };
 
 type CardForm = {
@@ -22,31 +32,34 @@ type CardForm = {
   expiryYear: string;
   dueDay: string;
   dueMonth: string;
-  debt: string;
   limit: string;
+  debt: string;
 };
 
-type Payment = {
-  id: string;
-  card: string;
+type MovementForm = {
+  type: "expense" | "income";
+  source: "cash" | string;
+  amount: string;
+  category: string;
+  note: string;
   date: string;
-  status: "Yaklaşıyor" | "Planlandı";
 };
 
-const storageKey = "kart-takip:v0.5:cards";
-
-const colorOptions = [
-  "from-emerald-500 to-teal-500",
-  "from-rose-500 to-orange-400",
+const dataKey = "kart-takip:v1:data";
+const oldCardsKey = "kart-takip:v0.5:cards";
+const colors = [
+  "from-teal-500 to-emerald-500",
   "from-sky-500 to-indigo-500",
+  "from-rose-500 to-orange-400",
   "from-violet-500 to-fuchsia-500",
 ];
 
 const days = Array.from({ length: 31 }, (_, index) => String(index + 1).padStart(2, "0"));
 const months = Array.from({ length: 12 }, (_, index) => String(index + 1).padStart(2, "0"));
 const years = Array.from({ length: 12 }, (_, index) => String(new Date().getFullYear() + index).slice(-2));
+const today = new Date().toISOString().slice(0, 10);
 
-const emptyForm: CardForm = {
+const emptyCardForm: CardForm = {
   bank: "",
   name: "",
   last4: "",
@@ -54,16 +67,20 @@ const emptyForm: CardForm = {
   expiryYear: years[0] ?? "26",
   dueDay: "01",
   dueMonth: "01",
-  debt: "",
   limit: "",
+  debt: "",
 };
 
-const statusStyles: Record<Payment["status"], string> = {
-  Yaklaşıyor: "bg-amber-50 text-amber-700 ring-amber-200",
-  Planlandı: "bg-sky-50 text-sky-700 ring-sky-200",
+const emptyMovementForm: MovementForm = {
+  type: "expense",
+  source: "cash",
+  amount: "",
+  category: "Genel",
+  note: "",
+  date: today,
 };
 
-function formatCurrency(value: number) {
+function money(value: number) {
   return new Intl.NumberFormat("tr-TR", {
     maximumFractionDigits: 2,
     minimumFractionDigits: 2,
@@ -71,129 +88,154 @@ function formatCurrency(value: number) {
 }
 
 function parseMoney(value: string) {
-  const normalized = value.replace(/TL/gi, "").replace(/\s/g, "").replace(/\./g, "").replace(",", ".").replace(/[^\d.]/g, "");
+  const normalized = value
+    .replace(/TL/gi, "")
+    .replace(/\s/g, "")
+    .replace(/\./g, "")
+    .replace(",", ".")
+    .replace(/[^\d.]/g, "");
   const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function formatMoneyInput(value: string) {
+function moneyInput(value: string) {
   const amount = parseMoney(value);
-  return amount > 0 ? formatCurrency(amount) : "";
+  return amount > 0 ? money(amount) : "";
 }
 
-function getUtilization(card: Card) {
-  if (card.limit <= 0) {
-    return 0;
-  }
-
-  return Math.min(100, Math.round((card.debt / card.limit) * 100));
+function monthKey(date: string) {
+  return date.slice(0, 7);
 }
 
-function makePayments(cards: Card[]): Payment[] {
-  return cards.map((card, index) => ({
-    id: card.id,
-    card: card.name,
-    date: card.dueDate,
-    status: index === 0 ? "Yaklaşıyor" : "Planlandı",
-  }));
-}
-
-function safeCardFromUnknown(card: Partial<Card>, index: number) {
-  const last4 = String(card.last4 ?? "").replace(/\D/g, "").slice(-4);
-  const expiryDate = /^\d{2}\/\d{2}$/.test(String(card.expiryDate ?? "")) ? String(card.expiryDate) : "01/26";
-  const dueDate = /^\d{2}\/\d{2}$/.test(String(card.dueDate ?? "")) ? String(card.dueDate) : "01/01";
-
+function safeCard(raw: Partial<Card>, index: number): Card {
+  const last4 = String(raw.last4 ?? "").replace(/\D/g, "").slice(-4);
   return {
-    id: String(card.id ?? `${last4}-${Date.now()}-${index}`),
-    bank: String(card.bank ?? ""),
-    name: String(card.name ?? ""),
+    id: String(raw.id ?? `${last4}-${Date.now()}-${index}`),
+    bank: String(raw.bank ?? ""),
+    name: String(raw.name ?? ""),
     last4,
-    expiryDate,
-    color: colorOptions.includes(String(card.color)) ? String(card.color) : colorOptions[index % colorOptions.length],
-    debt: Number(card.debt) || 0,
-    limit: Number(card.limit) || 0,
-    dueDate,
+    expiryDate: /^\d{2}\/\d{2}$/.test(String(raw.expiryDate ?? "")) ? String(raw.expiryDate) : "01/26",
+    dueDate: /^\d{2}\/\d{2}$/.test(String(raw.dueDate ?? "")) ? String(raw.dueDate) : "01/01",
+    limit: Number(raw.limit) || 0,
+    debt: Number(raw.debt) || 0,
+    color: colors.includes(String(raw.color)) ? String(raw.color) : colors[index % colors.length],
   };
 }
 
-function readStoredCards() {
+function safeMovement(raw: Partial<Movement>): Movement {
+  return {
+    id: String(raw.id ?? Date.now()),
+    type: raw.type === "income" ? "income" : "expense",
+    source: raw.source ? String(raw.source) : "cash",
+    amount: Number(raw.amount) || 0,
+    category: String(raw.category ?? "Genel"),
+    note: String(raw.note ?? ""),
+    date: /^\d{4}-\d{2}-\d{2}$/.test(String(raw.date ?? "")) ? String(raw.date) : today,
+  };
+}
+
+function readData() {
   try {
-    const storedCards = window.localStorage.getItem(storageKey);
-    if (!storedCards) {
-      return [];
+    const stored = window.localStorage.getItem(dataKey);
+    if (stored) {
+      const parsed = JSON.parse(stored) as { cards?: Partial<Card>[]; movements?: Partial<Movement>[]; cash?: number };
+      return {
+        cards: (parsed.cards ?? []).map(safeCard).filter((card) => card.bank && card.name && card.last4.length === 4),
+        movements: (parsed.movements ?? []).map(safeMovement).filter((item) => item.amount > 0),
+        cash: Number(parsed.cash) || 0,
+      };
     }
 
-    const parsed = JSON.parse(storedCards) as Partial<Card>[];
-    return parsed
-      .map(safeCardFromUnknown)
-      .filter((card) => card.bank && card.name && card.last4.length === 4);
+    const oldCards = window.localStorage.getItem(oldCardsKey);
+    if (oldCards) {
+      const cards = JSON.parse(oldCards) as Partial<Card>[];
+      return {
+        cards: cards.map(safeCard).filter((card) => card.bank && card.name && card.last4.length === 4),
+        movements: [],
+        cash: 0,
+      };
+    }
   } catch {
-    return [];
+    return { cards: [], movements: [], cash: 0 };
   }
+
+  return { cards: [], movements: [], cash: 0 };
 }
 
 export default function Home() {
   const [cards, setCards] = useState<Card[]>([]);
-  const [form, setForm] = useState<CardForm>(emptyForm);
-  const [formError, setFormError] = useState("");
-  const [isReady, setIsReady] = useState(false);
-  const [isCardModalOpen, setIsCardModalOpen] = useState(false);
+  const [movements, setMovements] = useState<Movement[]>([]);
+  const [cash, setCash] = useState(0);
+  const [ready, setReady] = useState(false);
+  const [cardForm, setCardForm] = useState<CardForm>(emptyCardForm);
+  const [movementForm, setMovementForm] = useState<MovementForm>(emptyMovementForm);
+  const [cardError, setCardError] = useState("");
+  const [movementError, setMovementError] = useState("");
+  const [cardModal, setCardModal] = useState(false);
+  const [movementModal, setMovementModal] = useState(false);
   const [editingCardId, setEditingCardId] = useState<string | null>(null);
 
   useEffect(() => {
     window.setTimeout(() => {
-      setCards(readStoredCards());
-      setIsReady(true);
+      const data = readData();
+      setCards(data.cards);
+      setMovements(data.movements);
+      setCash(data.cash);
+      setReady(true);
     }, 0);
   }, []);
 
   useEffect(() => {
-    if (isReady) {
-      window.localStorage.setItem(storageKey, JSON.stringify(cards));
+    if (ready) {
+      window.localStorage.setItem(dataKey, JSON.stringify({ cards, movements, cash }));
     }
-  }, [cards, isReady]);
+  }, [cards, movements, cash, ready]);
 
+  const currentMonth = monthKey(today);
   const totals = useMemo(() => {
     const totalDebt = cards.reduce((sum, card) => sum + card.debt, 0);
     const totalLimit = cards.reduce((sum, card) => sum + card.limit, 0);
-    const availableLimit = Math.max(0, totalLimit - totalDebt);
-    const utilization = totalLimit > 0 ? Math.round((totalDebt / totalLimit) * 100) : 0;
+    const monthItems = movements.filter((item) => monthKey(item.date) === currentMonth);
+    const income = monthItems.filter((item) => item.type === "income").reduce((sum, item) => sum + item.amount, 0);
+    const expense = monthItems.filter((item) => item.type === "expense").reduce((sum, item) => sum + item.amount, 0);
 
-    return { totalDebt, totalLimit, availableLimit, utilization };
-  }, [cards]);
+    return {
+      totalDebt,
+      totalLimit,
+      availableLimit: Math.max(0, totalLimit - totalDebt),
+      income,
+      expense,
+      net: income - expense,
+    };
+  }, [cards, movements, currentMonth]);
 
-  const summary = [
-    { label: "Toplam borç", value: formatCurrency(totals.totalDebt), note: `${cards.length} kartta güncel bakiye` },
-    { label: "Kart sayısı", value: String(cards.length), note: "Eklenen aktif kart" },
-    { label: "Kullanılabilir limit", value: formatCurrency(totals.availableLimit), note: `Toplam limit ${formatCurrency(totals.totalLimit)}` },
-    { label: "Ortalama kullanım", value: `%${totals.utilization}`, note: totals.utilization < 50 ? "Risk seviyesi düşük" : "Kontrol gerekli" },
-  ];
+  const recentMovements = [...movements].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 6);
 
-  const payments = makePayments(cards);
-
-  function updateForm(field: keyof CardForm, value: string) {
-    const safeValue = field === "last4" ? value.replace(/\D/g, "").slice(0, 4) : value;
-    setForm((current) => ({ ...current, [field]: safeValue }));
-    setFormError("");
+  function updateCard(field: keyof CardForm, value: string) {
+    setCardForm((current) => ({
+      ...current,
+      [field]: field === "last4" ? value.replace(/\D/g, "").slice(0, 4) : value,
+    }));
+    setCardError("");
   }
 
-  function formatFormMoney(field: "debt" | "limit") {
-    setForm((current) => ({ ...current, [field]: formatMoneyInput(current[field]) }));
+  function updateMovement(field: keyof MovementForm, value: string) {
+    setMovementForm((current) => ({ ...current, [field]: value }));
+    setMovementError("");
   }
 
   function openAddCard() {
     setEditingCardId(null);
-    setForm(emptyForm);
-    setFormError("");
-    setIsCardModalOpen(true);
+    setCardForm(emptyCardForm);
+    setCardError("");
+    setCardModal(true);
   }
 
   function openEditCard(card: Card) {
     const [expiryMonth, expiryYear] = card.expiryDate.split("/");
     const [dueDay, dueMonth] = card.dueDate.split("/");
-
     setEditingCardId(card.id);
-    setForm({
+    setCardForm({
       bank: card.bank,
       name: card.name,
       last4: card.last4,
@@ -201,80 +243,99 @@ export default function Home() {
       expiryYear: expiryYear || (years[0] ?? "26"),
       dueDay: dueDay || "01",
       dueMonth: dueMonth || "01",
-      debt: card.debt ? String(card.debt) : "",
-      limit: card.limit ? String(card.limit) : "",
+      limit: card.limit ? money(card.limit) : "",
+      debt: card.debt ? money(card.debt) : "",
     });
-    setFormError("");
-    setIsCardModalOpen(true);
+    setCardError("");
+    setCardModal(true);
   }
 
-  function closeCardModal() {
-    setIsCardModalOpen(false);
-    setEditingCardId(null);
-    setFormError("");
+  function openMovement(type: "expense" | "income") {
+    setMovementForm({
+      ...emptyMovementForm,
+      type,
+      source: type === "expense" && cards[0] ? cards[0].id : "cash",
+      date: today,
+    });
+    setMovementError("");
+    setMovementModal(true);
   }
 
   function saveCard(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const bank = form.bank.trim();
-    const name = form.name.trim();
-    const last4 = form.last4.trim();
-    const expiryDate = `${form.expiryMonth}/${form.expiryYear}`;
-    const dueDate = `${form.dueDay}/${form.dueMonth}`;
-    const debt = parseMoney(form.debt);
-    const limit = parseMoney(form.limit);
-
-    if (!bank) {
-      setFormError("Banka adı gerekli.");
+    const bank = cardForm.bank.trim();
+    const name = cardForm.name.trim();
+    const last4 = cardForm.last4.trim();
+    if (!bank || !name || last4.length !== 4) {
+      setCardError("Banka, kart adı ve son 4 hane gerekli.");
       return;
     }
 
-    if (!name) {
-      setFormError("Kart adı gerekli.");
+    const next: Card = {
+      id: editingCardId ?? `${last4}-${Date.now()}`,
+      bank,
+      name,
+      last4,
+      expiryDate: `${cardForm.expiryMonth}/${cardForm.expiryYear}`,
+      dueDate: `${cardForm.dueDay}/${cardForm.dueMonth}`,
+      limit: parseMoney(cardForm.limit),
+      debt: parseMoney(cardForm.debt),
+      color: cards.find((card) => card.id === editingCardId)?.color ?? colors[cards.length % colors.length],
+    };
+
+    setCards((current) => editingCardId ? current.map((card) => card.id === editingCardId ? next : card) : [next, ...current]);
+    setCardForm(emptyCardForm);
+    setEditingCardId(null);
+    setCardModal(false);
+  }
+
+  function saveMovement(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const amount = parseMoney(movementForm.amount);
+    if (amount <= 0) {
+      setMovementError("Tutar 0'dan büyük olmalı.");
       return;
     }
 
-    if (last4.length !== 4) {
-      setFormError("Son 4 hane tam olarak 4 rakam olmalı.");
-      return;
-    }
+    const next: Movement = {
+      id: `${Date.now()}`,
+      type: movementForm.type,
+      source: movementForm.source,
+      amount,
+      category: movementForm.category.trim() || "Genel",
+      note: movementForm.note.trim(),
+      date: movementForm.date || today,
+    };
 
-    if (editingCardId) {
-      setCards((current) => current.map((card) => card.id === editingCardId ? { ...card, bank, name, last4, expiryDate, debt, limit, dueDate } : card));
+    setMovements((current) => [next, ...current]);
+
+    if (next.source === "cash") {
+      setCash((current) => next.type === "income" ? current + amount : current - amount);
     } else {
-      const nextCard: Card = {
-        id: `${last4}-${Date.now()}`,
-        bank,
-        name,
-        last4,
-        expiryDate,
-        color: colorOptions[cards.length % colorOptions.length],
-        debt,
-        limit,
-        dueDate,
-      };
-
-      setCards((current) => [nextCard, ...current]);
+      setCards((current) => current.map((card) => {
+        if (card.id !== next.source) return card;
+        return { ...card, debt: next.type === "expense" ? card.debt + amount : Math.max(0, card.debt - amount) };
+      }));
     }
 
-    setForm(emptyForm);
-    setFormError("");
-    setEditingCardId(null);
-    setIsCardModalOpen(false);
+    setMovementForm(emptyMovementForm);
+    setMovementModal(false);
   }
 
-  function removeCard(cardId: string) {
-    setCards((current) => current.filter((card) => card.id !== cardId));
+  function sourceName(source: string) {
+    if (source === "cash") return "Nakit kasa";
+    const card = cards.find((item) => item.id === source);
+    return card ? `${card.name} *${card.last4}` : "Kart";
   }
 
-  function clearCards() {
+  function clearAll() {
     setCards([]);
-    setForm(emptyForm);
-    setFormError("");
-    setEditingCardId(null);
-    setIsCardModalOpen(false);
-    window.localStorage.removeItem(storageKey);
+    setMovements([]);
+    setCash(0);
+    window.localStorage.removeItem(dataKey);
+    window.localStorage.removeItem(oldCardsKey);
   }
 
   return (
@@ -282,71 +343,58 @@ export default function Home() {
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-5 sm:px-6 lg:px-8">
         <header className="flex flex-col gap-4 border-b border-slate-200 pb-5 md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="text-sm font-medium text-teal-700">Cüzdan v0.8</p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-normal text-slate-950 sm:text-4xl">
-              Kart takip paneli
-            </h1>
+            <p className="text-sm font-medium text-teal-700">Cüzdan v1.0</p>
+            <h1 className="mt-2 text-3xl font-semibold text-slate-950 sm:text-4xl">Kart takip paneli</h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-              Kartlarını takip et, ödeme tarihlerini kaçırma, hassas kart bilgilerini sisteme alma.
+              Kartlarını, nakit kasanı ve aylık para hareketlerini tek yerde takip et.
             </p>
           </div>
           <div className="flex flex-wrap gap-2 text-sm">
-            <button type="button" onClick={openAddCard} className="rounded-md bg-teal-600 px-4 py-2 font-semibold text-white transition hover:bg-teal-700">
-              Kart ekle
-            </button>
-            <button type="button" onClick={clearCards} className="rounded-md border border-slate-200 bg-white px-4 py-2 text-slate-700 transition hover:bg-slate-100">
-              Tüm kartları temizle
-            </button>
+            <button type="button" onClick={() => openMovement("expense")} className="rounded-md bg-teal-600 px-4 py-2 font-semibold text-white hover:bg-teal-700">Harcama ekle</button>
+            <button type="button" onClick={() => openMovement("income")} className="rounded-md border border-teal-200 bg-white px-4 py-2 font-semibold text-teal-700 hover:bg-teal-50">Para girişi</button>
+            <button type="button" onClick={openAddCard} className="rounded-md border border-slate-200 bg-white px-4 py-2 text-slate-700 hover:bg-slate-100">Kart ekle</button>
           </div>
         </header>
 
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {summary.map((item) => (
-            <article key={item.label} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-              <p className="text-sm text-slate-500">{item.label}</p>
-              <p className="mt-3 text-2xl font-semibold text-slate-950">{item.value}</p>
-              <p className="mt-2 text-sm text-slate-500">{item.note}</p>
+          {[
+            ["Aylık harcama", money(totals.expense), "Bu ay girilen giderler"],
+            ["Nakit kasa", money(cash), "Eldeki nakit para"],
+            ["Aylık giriş / çıkış", money(totals.net), `${money(totals.income)} giriş, ${money(totals.expense)} çıkış`],
+            ["Toplam kart borcu", money(totals.totalDebt), `${cards.length} kartta güncel bakiye`],
+          ].map(([label, value, note]) => (
+            <article key={label} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+              <p className="text-sm text-slate-500">{label}</p>
+              <p className="mt-3 text-2xl font-semibold text-slate-950">{value}</p>
+              <p className="mt-2 text-sm text-slate-500">{note}</p>
             </article>
           ))}
-        </section>
-
-        <section className="rounded-lg border border-teal-100 bg-teal-50 p-4">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h2 className="text-base font-semibold text-slate-950">Güvenli takip modeli</h2>
-              <p className="mt-1 text-sm text-slate-600">Banka şifresi, PIN, CVV veya tam kart numarası istemiyoruz. Kart kimliği için yalnızca son 4 hane tutulur.</p>
-            </div>
-            <span className="w-fit rounded-md border border-teal-200 bg-white px-3 py-2 text-sm text-teal-700">
-              Hassas veri yok
-            </span>
-          </div>
         </section>
 
         <section className="grid gap-6 lg:grid-cols-[1.35fr_0.85fr]">
           <div className="space-y-4">
             <div className="flex items-center justify-between gap-4">
-              <h2 className="text-lg font-semibold text-slate-950">Kartlar</h2>
-              <p className="text-sm text-slate-500">{cards.length} aktif kart</p>
+              <h2 className="text-lg font-semibold">Kartlar</h2>
+              <button type="button" onClick={openAddCard} className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">Kart ekle</button>
             </div>
             {cards.length > 0 ? (
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {cards.map((card) => {
-                  const utilization = getUtilization(card);
-
+                  const usage = card.limit > 0 ? Math.min(100, Math.round((card.debt / card.limit) * 100)) : 0;
                   return (
                     <article key={card.id} className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
                       <div className={`bg-gradient-to-br ${card.color} p-4 text-white`}>
                         <div className="flex items-start justify-between gap-4">
                           <div>
-                            <p className="text-sm font-medium text-white/85">{card.bank}</p>
+                            <p className="text-sm text-white/85">{card.bank}</p>
                             <h3 className="mt-1 text-lg font-semibold">{card.name}</h3>
                           </div>
-                          <span className="rounded-md bg-black/20 px-2 py-1 text-xs font-medium">*{card.last4}</span>
+                          <span className="rounded-md bg-black/20 px-2 py-1 text-xs">*{card.last4}</span>
                         </div>
                         <div className="mt-8 flex items-end justify-between gap-3">
                           <div>
                             <p className="text-xs text-white/80">Güncel borç</p>
-                            <p className="text-2xl font-semibold">{formatCurrency(card.debt)}</p>
+                            <p className="text-2xl font-semibold">{money(card.debt)}</p>
                           </div>
                           <div className="text-right text-sm text-white/85">
                             <p>SKT: {card.expiryDate}</p>
@@ -357,24 +405,20 @@ export default function Home() {
                       <div className="space-y-4 p-4">
                         <div className="flex justify-between text-sm">
                           <span className="text-slate-500">Limit</span>
-                          <span className="font-medium text-slate-900">{formatCurrency(card.limit)}</span>
+                          <span className="font-medium">{money(card.limit)}</span>
                         </div>
                         <div>
                           <div className="mb-2 flex justify-between text-xs text-slate-500">
                             <span>Kullanım</span>
-                            <span>%{utilization}</span>
+                            <span>%{usage}</span>
                           </div>
                           <div className="h-2 rounded-full bg-slate-100">
-                            <div className="h-2 rounded-full bg-teal-500" style={{ width: `${utilization}%` }} />
+                            <div className="h-2 rounded-full bg-teal-500" style={{ width: `${usage}%` }} />
                           </div>
                         </div>
                         <div className="grid grid-cols-2 gap-2">
-                          <button type="button" onClick={() => openEditCard(card)} className="rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-100">
-                            Düzenle
-                          </button>
-                          <button type="button" onClick={() => removeCard(card.id)} className="rounded-md border border-rose-200 px-3 py-2 text-sm text-rose-700 transition hover:bg-rose-50">
-                            Sil
-                          </button>
+                          <button type="button" onClick={() => openEditCard(card)} className="rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">Düzenle</button>
+                          <button type="button" onClick={() => setCards((current) => current.filter((item) => item.id !== card.id))} className="rounded-md border border-rose-200 px-3 py-2 text-sm text-rose-700 hover:bg-rose-50">Sil</button>
                         </div>
                       </div>
                     </article>
@@ -389,107 +433,198 @@ export default function Home() {
           </div>
 
           <aside className="space-y-4">
-            <div className="flex items-center justify-between gap-4">
-              <h2 className="text-lg font-semibold text-slate-950">Yaklaşan ödemeler</h2>
-              <p className="text-sm text-slate-500">GG/AA</p>
-            </div>
-            <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
-              {payments.length > 0 ? payments.map((payment, index) => (
-                <div key={payment.id} className={`flex items-center justify-between gap-4 p-4 ${index !== payments.length - 1 ? "border-b border-slate-100" : ""}`}>
-                  <div>
-                    <p className="font-medium text-slate-950">{payment.card}</p>
-                    <p className="mt-1 text-sm text-slate-500">Son ödeme: {payment.date}</p>
+            <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+              <h2 className="text-lg font-semibold">Yaklaşan ödemeler</h2>
+              <div className="mt-3 divide-y divide-slate-100">
+                {cards.length > 0 ? cards.map((card) => (
+                  <div key={card.id} className="flex items-center justify-between py-3">
+                    <div>
+                      <p className="font-medium">{card.name}</p>
+                      <p className="text-sm text-slate-500">Son ödeme: {card.dueDate}</p>
+                    </div>
+                    <span className="rounded-md bg-sky-50 px-2 py-1 text-xs font-medium text-sky-700 ring-1 ring-sky-200">Planlandı</span>
                   </div>
-                  <span className={`inline-flex rounded-md px-2 py-1 text-xs font-medium ring-1 ${statusStyles[payment.status]}`}>
-                    {payment.status}
-                  </span>
-                </div>
-              )) : (
-                <div className="p-5 text-sm text-slate-500">Ödeme takibi için kart ekle.</div>
-              )}
+                )) : <p className="py-3 text-sm text-slate-500">Ödeme takibi için kart ekle.</p>}
+              </div>
+            </div>
+            <div className="rounded-lg border border-teal-100 bg-teal-50 p-4">
+              <h2 className="font-semibold">Cihaz notu</h2>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                PC ve telefon kayıtları şu an ayrı tutulur. Veriler tarayıcının kendi hafızasında saklandığı için otomatik senkronizasyon yok.
+              </p>
             </div>
           </aside>
         </section>
 
         <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-950">Son işlemler</h2>
-          <p className="mt-3 text-sm text-slate-500">Henüz işlem yok. Bir sonraki adımda kartlara harcama ekleme ekranını bağlayacağız.</p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">Son işlemler</h2>
+              <p className="mt-1 text-sm text-slate-500">Kart ve nakit hareketlerinin son kayıtları.</p>
+            </div>
+            <button type="button" onClick={clearAll} className="w-fit rounded-md border border-rose-200 px-3 py-2 text-sm text-rose-700 hover:bg-rose-50">Tüm verileri temizle</button>
+          </div>
+          <div className="mt-4 divide-y divide-slate-100">
+            {recentMovements.length > 0 ? recentMovements.map((item) => (
+              <div key={item.id} className="grid gap-2 py-3 sm:grid-cols-[1fr_auto_auto] sm:items-center">
+                <div>
+                  <p className="font-medium">{item.category}</p>
+                  <p className="text-sm text-slate-500">{sourceName(item.source)}{item.note ? ` · ${item.note}` : ""}</p>
+                </div>
+                <p className="text-sm text-slate-500">{item.date}</p>
+                <p className={`font-semibold ${item.type === "income" ? "text-emerald-700" : "text-rose-700"}`}>
+                  {item.type === "income" ? "+" : "-"}{money(item.amount)}
+                </p>
+              </div>
+            )) : <p className="py-3 text-sm text-slate-500">Henüz işlem yok. Harcama veya para girişi ekleyerek başlayabilirsin.</p>}
+          </div>
         </section>
       </div>
 
-      {isCardModalOpen ? (
+      {cardModal ? (
         <div className="fixed inset-0 z-50 flex items-end bg-slate-950/35 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center">
-          <form onSubmit={saveCard} className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-slate-200 bg-white p-5 shadow-2xl shadow-slate-400/30">
-            <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-4">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-950">{editingCardId ? "Kartı düzenle" : "Kart ekle"}</h2>
-                <p className="mt-1 text-sm text-slate-500">Zorunlu alanlar: banka, kart adı ve son 4 hane.</p>
-              </div>
-              <button type="button" onClick={closeCardModal} className="rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-100" aria-label="Kapat">
-                Kapat
-              </button>
+          <form onSubmit={saveCard} className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-slate-200 bg-white p-5 shadow-2xl">
+            <ModalHeader title={editingCardId ? "Kartı düzenle" : "Kart ekle"} onClose={() => setCardModal(false)} />
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <TextField label="Banka" value={cardForm.bank} onChange={(value) => updateCard("bank", value)} placeholder="Garanti BBVA" />
+              <TextField label="Kart adı" value={cardForm.name} onChange={(value) => updateCard("name", value)} placeholder="Bonus Platinum" />
+              <TextField label="Son 4 hane" value={cardForm.last4} onChange={(value) => updateCard("last4", value)} placeholder="4821" inputMode="numeric" maxLength={4} />
+              <SelectPair label="Son kullanma tarihi" first={cardForm.expiryMonth} second={cardForm.expiryYear} firstOptions={months} secondOptions={years} onFirst={(value) => updateCard("expiryMonth", value)} onSecond={(value) => updateCard("expiryYear", value)} />
+              <SelectPair label="Son ödeme tarihi" first={cardForm.dueDay} second={cardForm.dueMonth} firstOptions={days} secondOptions={months} onFirst={(value) => updateCard("dueDay", value)} onSecond={(value) => updateCard("dueMonth", value)} />
+              <TextField label="Limit" value={cardForm.limit} onChange={(value) => updateCard("limit", value)} onBlur={() => setCardForm((current) => ({ ...current, limit: moneyInput(current.limit) }))} placeholder="14.568,00 TL" inputMode="decimal" />
+              <TextField label="Güncel borç" value={cardForm.debt} onChange={(value) => updateCard("debt", value)} onBlur={() => setCardForm((current) => ({ ...current, debt: moneyInput(current.debt) }))} placeholder="14.568,00 TL" inputMode="decimal" wide />
             </div>
+            {cardError ? <ErrorText text={cardError} /> : null}
+            <ModalActions onCancel={() => setCardModal(false)} submit={editingCardId ? "Değişiklikleri kaydet" : "Kartı kaydet"} />
+          </form>
+        </div>
+      ) : null}
 
+      {movementModal ? (
+        <div className="fixed inset-0 z-50 flex items-end bg-slate-950/35 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center">
+          <form onSubmit={saveMovement} className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-lg border border-slate-200 bg-white p-5 shadow-2xl">
+            <ModalHeader title={movementForm.type === "income" ? "Para girişi" : "Harcama ekle"} onClose={() => setMovementModal(false)} />
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <label className="space-y-2 text-sm text-slate-700">
-                <span>Banka</span>
-                <input value={form.bank} onChange={(event) => updateForm("bank", event.target.value)} placeholder="Garanti BBVA" className="w-full rounded-md border border-slate-200 bg-white px-3 py-3 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-teal-500" />
+                <span>İşlem türü</span>
+                <select value={movementForm.type} onChange={(event) => updateMovement("type", event.target.value as MovementForm["type"])} className="field">
+                  <option value="expense">Harcama</option>
+                  <option value="income">Para girişi</option>
+                </select>
               </label>
               <label className="space-y-2 text-sm text-slate-700">
-                <span>Kart adı</span>
-                <input value={form.name} onChange={(event) => updateForm("name", event.target.value)} placeholder="Bonus Platinum" className="w-full rounded-md border border-slate-200 bg-white px-3 py-3 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-teal-500" />
+                <span>Kaynak</span>
+                <select value={movementForm.source} onChange={(event) => updateMovement("source", event.target.value)} className="field">
+                  <option value="cash">Nakit kasa</option>
+                  {cards.map((card) => <option key={card.id} value={card.id}>{card.name} *{card.last4}</option>)}
+                </select>
               </label>
-              <label className="space-y-2 text-sm text-slate-700">
-                <span>Son 4 hane</span>
-                <input value={form.last4} onChange={(event) => updateForm("last4", event.target.value)} inputMode="numeric" maxLength={4} placeholder="4821" className="w-full rounded-md border border-slate-200 bg-white px-3 py-3 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-teal-500" />
-              </label>
-              <div className="space-y-2 text-sm text-slate-700">
-                <span>Son kullanma tarihi</span>
-                <div className="grid grid-cols-2 gap-2">
-                  <select value={form.expiryMonth} onChange={(event) => updateForm("expiryMonth", event.target.value)} className="w-full rounded-md border border-slate-200 bg-white px-3 py-3 text-slate-950 outline-none transition focus:border-teal-500">
-                    {months.map((month) => <option key={month} value={month}>{month}</option>)}
-                  </select>
-                  <select value={form.expiryYear} onChange={(event) => updateForm("expiryYear", event.target.value)} className="w-full rounded-md border border-slate-200 bg-white px-3 py-3 text-slate-950 outline-none transition focus:border-teal-500">
-                    {years.map((year) => <option key={year} value={year}>{year}</option>)}
-                  </select>
-                </div>
-                <p className="text-xs text-slate-400">Format: {form.expiryMonth}/{form.expiryYear}</p>
-              </div>
-              <div className="space-y-2 text-sm text-slate-700">
-                <span>Son ödeme tarihi</span>
-                <div className="grid grid-cols-2 gap-2">
-                  <select value={form.dueDay} onChange={(event) => updateForm("dueDay", event.target.value)} className="w-full rounded-md border border-slate-200 bg-white px-3 py-3 text-slate-950 outline-none transition focus:border-teal-500">
-                    {days.map((day) => <option key={day} value={day}>{day}</option>)}
-                  </select>
-                  <select value={form.dueMonth} onChange={(event) => updateForm("dueMonth", event.target.value)} className="w-full rounded-md border border-slate-200 bg-white px-3 py-3 text-slate-950 outline-none transition focus:border-teal-500">
-                    {months.map((month) => <option key={month} value={month}>{month}</option>)}
-                  </select>
-                </div>
-                <p className="text-xs text-slate-400">Format: {form.dueDay}/{form.dueMonth}</p>
-              </div>
-              <label className="space-y-2 text-sm text-slate-700">
-                <span>Limit</span>
-                <input value={form.limit} onChange={(event) => updateForm("limit", event.target.value)} onBlur={() => formatFormMoney("limit")} inputMode="decimal" placeholder="14.568,00 TL" className="w-full rounded-md border border-slate-200 bg-white px-3 py-3 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-teal-500" />
-              </label>
-              <label className="space-y-2 text-sm text-slate-700 sm:col-span-2">
-                <span>Güncel borç</span>
-                <input value={form.debt} onChange={(event) => updateForm("debt", event.target.value)} onBlur={() => formatFormMoney("debt")} inputMode="decimal" placeholder="14.568,00 TL" className="w-full rounded-md border border-slate-200 bg-white px-3 py-3 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-teal-500" />
-              </label>
+              <TextField label="Tutar" value={movementForm.amount} onChange={(value) => updateMovement("amount", value)} onBlur={() => setMovementForm((current) => ({ ...current, amount: moneyInput(current.amount) }))} placeholder="14.568,00 TL" inputMode="decimal" />
+              <TextField label="Tarih" type="date" value={movementForm.date} onChange={(value) => updateMovement("date", value)} />
+              <TextField label="Kategori" value={movementForm.category} onChange={(value) => updateMovement("category", value)} placeholder="Market" />
+              <TextField label="Not" value={movementForm.note} onChange={(value) => updateMovement("note", value)} placeholder="İsteğe bağlı" />
             </div>
-
-            {formError ? <p className="mt-4 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{formError}</p> : null}
-
-            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <button type="button" onClick={closeCardModal} className="rounded-md border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">
-                Vazgeç
-              </button>
-              <button type="submit" className="rounded-md bg-teal-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-teal-700">
-                {editingCardId ? "Değişiklikleri kaydet" : "Kartı kaydet"}
-              </button>
-            </div>
+            {movementError ? <ErrorText text={movementError} /> : null}
+            <ModalActions onCancel={() => setMovementModal(false)} submit="İşlemi kaydet" />
           </form>
         </div>
       ) : null}
     </main>
+  );
+}
+
+function ModalHeader({ title, onClose }: { title: string; onClose: () => void }) {
+  return (
+    <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-4">
+      <div>
+        <h2 className="text-lg font-semibold">{title}</h2>
+        <p className="mt-1 text-sm text-slate-500">Bilgileri istediğin zaman düzenleyebilirsin.</p>
+      </div>
+      <button type="button" onClick={onClose} className="rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">Kapat</button>
+    </div>
+  );
+}
+
+function ModalActions({ onCancel, submit }: { onCancel: () => void; submit: string }) {
+  return (
+    <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+      <button type="button" onClick={onCancel} className="rounded-md border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100">Vazgeç</button>
+      <button type="submit" className="rounded-md bg-teal-600 px-4 py-3 text-sm font-semibold text-white hover:bg-teal-700">{submit}</button>
+    </div>
+  );
+}
+
+function ErrorText({ text }: { text: string }) {
+  return <p className="mt-4 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{text}</p>;
+}
+
+function TextField({
+  label,
+  value,
+  onChange,
+  onBlur,
+  placeholder,
+  inputMode,
+  maxLength,
+  type = "text",
+  wide = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  onBlur?: () => void;
+  placeholder?: string;
+  inputMode?: "decimal" | "numeric";
+  maxLength?: number;
+  type?: string;
+  wide?: boolean;
+}) {
+  return (
+    <label className={`space-y-2 text-sm text-slate-700 ${wide ? "sm:col-span-2" : ""}`}>
+      <span>{label}</span>
+      <input
+        type={type}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onBlur={onBlur}
+        inputMode={inputMode}
+        maxLength={maxLength}
+        placeholder={placeholder}
+        className="field"
+      />
+    </label>
+  );
+}
+
+function SelectPair({
+  label,
+  first,
+  second,
+  firstOptions,
+  secondOptions,
+  onFirst,
+  onSecond,
+}: {
+  label: string;
+  first: string;
+  second: string;
+  firstOptions: string[];
+  secondOptions: string[];
+  onFirst: (value: string) => void;
+  onSecond: (value: string) => void;
+}) {
+  return (
+    <div className="space-y-2 text-sm text-slate-700">
+      <span>{label}</span>
+      <div className="grid grid-cols-2 gap-2">
+        <select value={first} onChange={(event) => onFirst(event.target.value)} className="field">
+          {firstOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+        </select>
+        <select value={second} onChange={(event) => onSecond(event.target.value)} className="field">
+          {secondOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+        </select>
+      </div>
+      <p className="text-xs text-slate-400">Format: {first}/{second}</p>
+    </div>
   );
 }

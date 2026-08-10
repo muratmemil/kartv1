@@ -31,3 +31,22 @@ button,
 a {
   -webkit-tap-highlight-color: transparent;
 }
+.field {
+  width: 100%;
+  border-radius: 0.375rem;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  padding: 0.75rem;
+  color: #0f172a;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.field::placeholder {
+  color: #94a3b8;
+}
+
+.field:focus {
+  border-color: #0d9488;
+  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.12);
+}
