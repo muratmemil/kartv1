@@ -24,6 +24,15 @@ type Movement = {
   date: string;
 };
 
+type Loan = {
+  id: string;
+  name: string;
+  startDate: string;
+  principal: number;
+  installmentCount: number;
+  monthlyRate: number;
+};
+
 type CardForm = {
   bank: string;
   name: string;
@@ -45,6 +54,14 @@ type MovementForm = {
   date: string;
 };
 
+type LoanForm = {
+  name: string;
+  startDate: string;
+  principal: string;
+  installmentCount: string;
+  monthlyRate: string;
+};
+
 type Tab = "summary" | "creditCards" | "loans" | "wallet" | "kmh" | "movements";
 
 const dataKey = "kart-takip:v1:data";
@@ -56,7 +73,7 @@ const colors = [
   "from-violet-500 to-fuchsia-500",
 ];
 
-const expenseCategories = ["Genel", "Giyim", "Seyahat", "Akaryakıt", "Market", "Yeme İçme", "Fatura", "Sağlık", "Eğlence"];
+const expenseCategories = ["Genel", "Giyim", "Seyahat", "Akaryak\u0131t", "Market", "Yeme \u0130\u00e7me", "Fatura", "Sa\u011fl\u0131k", "E\u011flence"];
 const categoryColors = ["#14b8a6", "#0ea5e9", "#f43f5e", "#f59e0b", "#8b5cf6", "#22c55e", "#6366f1", "#ec4899", "#64748b"];
 
 const days = Array.from({ length: 31 }, (_, index) => String(index + 1).padStart(2, "0"));
@@ -83,6 +100,14 @@ const emptyMovementForm: MovementForm = {
   category: expenseCategories[0],
   note: "",
   date: today,
+};
+
+const emptyLoanForm: LoanForm = {
+  name: "",
+  startDate: today,
+  principal: "",
+  installmentCount: "12",
+  monthlyRate: "",
 };
 
 function money(value: number) {
@@ -139,15 +164,27 @@ function safeMovement(raw: Partial<Movement>): Movement {
   };
 }
 
+function safeLoan(raw: Partial<Loan>): Loan {
+  return {
+    id: String(raw.id ?? Date.now()),
+    name: String(raw.name ?? ""),
+    startDate: /^\d{4}-\d{2}-\d{2}$/.test(String(raw.startDate ?? "")) ? String(raw.startDate) : today,
+    principal: Number(raw.principal) || 0,
+    installmentCount: Math.max(1, Number(raw.installmentCount) || 1),
+    monthlyRate: Math.max(0, Number(raw.monthlyRate) || 0),
+  };
+}
+
 function readData() {
   try {
     const stored = window.localStorage.getItem(dataKey);
     if (stored) {
-      const parsed = JSON.parse(stored) as { cards?: Partial<Card>[]; movements?: Partial<Movement>[]; cash?: number };
+      const parsed = JSON.parse(stored) as { cards?: Partial<Card>[]; movements?: Partial<Movement>[]; loans?: Partial<Loan>[]; cash?: number };
       return {
         cards: (parsed.cards ?? []).map(safeCard).filter((card) => card.bank && card.name && card.last4.length === 4),
         movements: (parsed.movements ?? []).map(safeMovement).filter((item) => item.amount > 0),
         cash: Number(parsed.cash) || 0,
+        loans: (parsed.loans ?? []).map(safeLoan).filter((loan) => loan.name && loan.principal > 0),
       };
     }
 
@@ -157,28 +194,34 @@ function readData() {
       return {
         cards: cards.map(safeCard).filter((card) => card.bank && card.name && card.last4.length === 4),
         movements: [],
+        loans: [],
         cash: 0,
       };
     }
   } catch {
-    return { cards: [], movements: [], cash: 0 };
+    return { cards: [], movements: [], loans: [], cash: 0 };
   }
 
-  return { cards: [], movements: [], cash: 0 };
+  return { cards: [], movements: [], loans: [], cash: 0 };
 }
 
 export default function Home() {
   const [cards, setCards] = useState<Card[]>([]);
   const [movements, setMovements] = useState<Movement[]>([]);
   const [cash, setCash] = useState(0);
+  const [loans, setLoans] = useState<Loan[]>([]);
   const [ready, setReady] = useState(false);
   const [cardForm, setCardForm] = useState<CardForm>(emptyCardForm);
   const [movementForm, setMovementForm] = useState<MovementForm>(emptyMovementForm);
+  const [loanForm, setLoanForm] = useState<LoanForm>(emptyLoanForm);
   const [cardError, setCardError] = useState("");
   const [movementError, setMovementError] = useState("");
   const [cardModal, setCardModal] = useState(false);
   const [movementModal, setMovementModal] = useState(false);
+  const [loanModal, setLoanModal] = useState(false);
   const [editingCardId, setEditingCardId] = useState<string | null>(null);
+  const [cardManageMode, setCardManageMode] = useState(false);
+  const [movementQuery, setMovementQuery] = useState("");
   const [activeTab, setActiveTab] = useState<Tab>("summary");
 
   useEffect(() => {
@@ -216,7 +259,21 @@ export default function Home() {
   }, [cards, movements, currentMonth]);
 
   const sortedMovements = [...movements].sort((a, b) => b.date.localeCompare(a.date));
+  const dailyExpenses = Array.from({ length: Number(today.slice(8, 10)) }, (_, index) => {
+    const day = String(index + 1).padStart(2, "0");
+    const date = `${currentMonth}-${day}`;
+    const amount = movements
+      .filter((item) => item.type === "expense" && item.date === date)
+      .reduce((sum, item) => sum + item.amount, 0);
+    return { day, amount };
+  });
+  const maxDailyExpense = Math.max(1, ...dailyExpenses.map((item) => item.amount));
   const cashMovements = sortedMovements.filter((item) => item.source === "cash").slice(0, 8);
+  const searchedMovements = sortedMovements.filter((item) => {
+    const query = movementQuery.trim().toLocaleLowerCase("tr-TR");
+    if (!query) return true;
+    return [item.category, item.note, sourceName(item.source)].join(" ").toLocaleLowerCase("tr-TR").includes(query);
+  });
   const tabs: { id: Tab; label: string; short: string }[] = [
     { id: "summary", label: "\u00d6zet", short: "\u00d6zet" },
     { id: "creditCards", label: "Kredi kartlar\u0131", short: "Kart" },
@@ -371,6 +428,30 @@ export default function Home() {
     return card ? `${card.name} *${card.last4}` : "Kart";
   }
 
+  function updateLoan(field: keyof LoanForm, value: string) {
+    setLoanForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function saveLoan(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const principal = parseMoney(loanForm.principal);
+    const installmentCount = Math.max(1, Number(loanForm.installmentCount) || 1);
+    const monthlyRate = Math.max(0, Number(loanForm.monthlyRate.replace(",", ".")) || 0);
+    const name = loanForm.name.trim();
+    if (!name || principal <= 0) return;
+
+    setLoans((current) => [{
+      id: `${Date.now()}`,
+      name,
+      startDate: loanForm.startDate || today,
+      principal,
+      installmentCount,
+      monthlyRate,
+    }, ...current]);
+    setLoanForm(emptyLoanForm);
+    setLoanModal(false);
+  }
+
   function clearAll() {
     setCards([]);
     setMovements([]);
@@ -428,10 +509,24 @@ export default function Home() {
             {activeTab === "summary" ? (
               <div className="space-y-5">
                 <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <article className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                    <p className="text-sm text-slate-500">G&#252;nl&#252;k harcama</p>
+                    <p className="mt-3 text-2xl font-semibold text-slate-950">{money(totals.expense)}</p>
+                    <div className="mt-4 flex h-16 items-end gap-1">
+                      {dailyExpenses.map((item) => (
+                        <span
+                          key={item.day}
+                          title={`${item.day}: ${money(item.amount)}`}
+                          className="min-h-1 flex-1 rounded-t bg-teal-500/80"
+                          style={{ height: `${Math.max(6, (item.amount / maxDailyExpense) * 64)}px` }}
+                        />
+                      ))}
+                    </div>
+                    <p className="mt-2 text-xs text-slate-500">Bu ay&#305;n g&#252;nl&#252;k gider da&#287;&#305;l&#305;m&#305;</p>
+                  </article>
                   {[
-                    ["Ayl\u0131k harcama", money(totals.expense), "Bu ay girilen giderler"],
                     ["Nakit kasa", money(cash), "Eldeki nakit para"],
-                    ["Ayl\u0131k harcama", money(totals.expense), "Bu ay girilen giderler"],
+                    ["Ayl\u0131k giri\u015f / \u00e7\u0131k\u0131\u015f", money(totals.net), `${money(totals.income)} giri\u015f, ${money(totals.expense)} \u00e7\u0131k\u0131\u015f`],
                     ["Toplam kart borcu", money(totals.totalDebt), `${cards.length} kartta g\u00fcncel bakiye`],
                   ].map(([label, value, note]) => (
                     <article key={label} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
@@ -513,14 +608,17 @@ export default function Home() {
             {activeTab === "creditCards" ? (
               <div className="space-y-5">
                 <div className="flex items-center justify-between gap-4">
-                  <p className="text-sm text-slate-500">Kapal&#305; kartta limit g&#246;r&#252;n&#252;r. Detay i&#231;in kart&#305;n &#252;zerine gel veya karta dokun.</p>
-                  <button type="button" onClick={openAddCard} className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">Kart ekle</button>
+                  <p className="text-sm text-slate-500">Kart arkas&#305;nda finansal bilgiler g&#246;r&#252;n&#252;r. Silme ve d&#252;zenleme i&#351;lemleri d&#252;zenleme modundad&#305;r.</p>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={() => setCardManageMode((current) => !current)} className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">{cardManageMode ? "D\u00fczenlemeyi kapat" : "Kartlar\u0131 d\u00fczenle"}</button>
+                    <button type="button" onClick={openAddCard} className="rounded-md bg-teal-600 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-700">Kart ekle</button>
+                  </div>
                 </div>
                 {cards.length > 0 ? (
                   <div className="grid gap-8 overflow-visible md:grid-cols-2 xl:grid-cols-3">
                     {cards.map((card) => {
                       const usage = card.limit > 0 ? Math.min(100, Math.round((card.debt / card.limit) * 100)) : 0;
-                      return <CardTile key={card.id} card={card} usage={usage} onEdit={() => openEditCard(card)} onDelete={() => setCards((current) => current.filter((item) => item.id !== card.id))} />;
+                      return <CardTile key={card.id} card={card} usage={usage} manageMode={cardManageMode} onEdit={() => openEditCard(card)} onDelete={() => setCards((current) => current.filter((item) => item.id !== card.id))} />;
                     })}
                   </div>
                 ) : (
@@ -544,11 +642,23 @@ export default function Home() {
                 </article>
               </div>
             ) : null}
-
             {activeTab === "loans" ? (
-              <section className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-sm text-slate-600">
-                <h2 className="text-lg font-semibold text-slate-950">Krediler</h2>
-                <p className="mt-2 leading-6">Bu b&#246;l&#252;m kredi takibi i&#231;in ayr&#305;ld&#305;. Bir sonraki ad&#305;mda kredi ad&#305;, taksit tutar&#305;, kalan taksit ve &#246;deme g&#252;n&#252; ekleme ekran&#305;n&#305; burada a&#231;abiliriz.</p>
+              <section className="space-y-4">
+                <div className="flex items-center justify-between gap-4">
+                  <p className="text-sm text-slate-500">Kredi kullan&#305;m tarihi, taksit say&#305;s&#305;, faiz oran&#305; ve &#246;deme plan&#305;.</p>
+                  <button type="button" onClick={() => setLoanModal(true)} className="rounded-md bg-teal-600 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-700">Kredi ekle</button>
+                </div>
+                {loans.length > 0 ? (
+                  <div className="grid gap-4">
+                    {loans.map((loan) => (
+                      <LoanCard key={loan.id} loan={loan} onDelete={() => setLoans((current) => current.filter((item) => item.id !== loan.id))} />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-sm text-slate-600">
+                    Hen&#252;z kredi yok. &#304;lk kredi kayd&#305;n&#305; ekleyerek &#246;deme plan&#305;n&#305; g&#246;rebilirsin.
+                  </div>
+                )}
               </section>
             ) : null}
 
@@ -586,7 +696,15 @@ export default function Home() {
                   </div>
                   <button type="button" onClick={clearAll} className="w-fit rounded-md border border-rose-200 px-3 py-2 text-sm text-rose-700 hover:bg-rose-50">T&#252;m verileri temizle</button>
                 </div>
-                <MovementList items={sortedMovements} sourceName={sourceName} empty={"Hen\u00fcz i\u015flem yok. Harcama veya para giri\u015fi ekleyerek ba\u015flayabilirsin."} />
+                <div className="mt-4">
+                  <input
+                    value={movementQuery}
+                    onChange={(event) => setMovementQuery(event.target.value)}
+                    placeholder={"İşlem adı, kategori veya kaynak ara"}
+                    className="field"
+                  />
+                </div>
+                <MovementList items={searchedMovements} sourceName={sourceName} empty={movementQuery ? "Aramaya uygun i\u015flem bulunamad\u0131." : "Hen\u00fcz i\u015flem yok. Harcama veya para giri\u015fi ekleyerek ba\u015flayabilirsin."} />
               </section>
             ) : null}
           </section>
@@ -631,6 +749,22 @@ export default function Home() {
         </div>
       ) : null}
 
+
+      {loanModal ? (
+        <div className="fixed inset-0 z-50 flex items-end bg-slate-950/35 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center">
+          <form onSubmit={saveLoan} className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-lg border border-slate-200 bg-white p-5 shadow-2xl">
+            <ModalHeader title="Kredi ekle" onClose={() => setLoanModal(false)} />
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <TextField label={"Kredi ad\u0131"} value={loanForm.name} onChange={(value) => updateLoan("name", value)} placeholder={"İhtiyaç kredisi"} />
+              <TextField label={"Kullan\u0131m tarihi"} type="date" value={loanForm.startDate} onChange={(value) => updateLoan("startDate", value)} />
+              <TextField label={"Kredi tutar\u0131"} value={loanForm.principal} onChange={(value) => updateLoan("principal", value)} onBlur={() => setLoanForm((current) => ({ ...current, principal: moneyInput(current.principal) }))} placeholder="100.000,00 TL" inputMode="decimal" />
+              <TextField label={"Taksit say\u0131s\u0131"} value={loanForm.installmentCount} onChange={(value) => updateLoan("installmentCount", value.replace(/\D/g, ""))} placeholder="12" inputMode="numeric" />
+              <TextField label={"Ayl\u0131k faiz oran\u0131 (%)"} value={loanForm.monthlyRate} onChange={(value) => updateLoan("monthlyRate", value.replace(/[^\d,.]/g, ""))} placeholder="3,49" inputMode="decimal" wide />
+            </div>
+            <ModalActions onCancel={() => setLoanModal(false)} submit="Krediyi kaydet" />
+          </form>
+        </div>
+      ) : null}
       {movementModal ? (
         <div className="fixed inset-0 z-50 flex items-end bg-slate-950/35 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center">
           <form onSubmit={saveMovement} className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-lg border border-slate-200 bg-white p-5 shadow-2xl">
@@ -672,11 +806,13 @@ export default function Home() {
 function CardTile({
   card,
   usage,
+  manageMode,
   onEdit,
   onDelete,
 }: {
   card: Card;
   usage: number;
+  manageMode: boolean;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -770,13 +906,15 @@ function CardTile({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <button type="button" onClick={(event) => { event.stopPropagation(); onEdit(); }} className="rounded-md bg-white/90 px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-white">D&#252;zenle</button>
-              <button type="button" onClick={(event) => { event.stopPropagation(); onDelete(); }} className="rounded-md bg-rose-500/90 px-3 py-2 text-sm font-semibold text-white hover:bg-rose-500">Sil</button>
-            </div>
           </div>
         </article>
       </div>
+      {manageMode ? (
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <button type="button" onClick={onEdit} className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">D&#252;zenle</button>
+          <button type="button" onClick={onDelete} className="rounded-md border border-rose-200 bg-white px-3 py-2 text-sm text-rose-700 hover:bg-rose-50">Sil</button>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -848,6 +986,70 @@ function MovementList({
         );
       }) : <p className="rounded-lg bg-slate-50 p-4 text-sm text-slate-500">{empty}</p>}
     </div>
+  );
+}
+
+function LoanCard({ loan, onDelete }: { loan: Loan; onDelete: () => void }) {
+  const rate = loan.monthlyRate / 100;
+  const monthlyPayment = rate > 0
+    ? loan.principal * (rate / (1 - Math.pow(1 + rate, -loan.installmentCount)))
+    : loan.principal / loan.installmentCount;
+  const schedule = Array.from({ length: loan.installmentCount }, (_, index) => {
+    const paidMonths = index;
+    const remainingBefore = rate > 0
+      ? loan.principal * Math.pow(1 + rate, paidMonths) - monthlyPayment * ((Math.pow(1 + rate, paidMonths) - 1) / rate)
+      : loan.principal - monthlyPayment * paidMonths;
+    const interest = remainingBefore * rate;
+    const principalPayment = Math.min(remainingBefore, monthlyPayment - interest);
+    return {
+      month: index + 1,
+      payment: monthlyPayment,
+      interest,
+      balance: Math.max(0, remainingBefore - principalPayment),
+    };
+  });
+  const totalPayment = monthlyPayment * loan.installmentCount;
+
+  return (
+    <article className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h3 className="text-lg font-semibold text-slate-950">{loan.name}</h3>
+          <p className="mt-1 text-sm text-slate-500">Kullan&#305;m tarihi: {loan.startDate}</p>
+        </div>
+        <button type="button" onClick={onDelete} className="w-fit rounded-md border border-rose-200 px-3 py-2 text-sm text-rose-700 hover:bg-rose-50">Sil</button>
+      </div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <div className="rounded-lg bg-slate-50 p-3">
+          <p className="text-xs text-slate-500">Kredi tutar&#305;</p>
+          <p className="mt-1 font-semibold">{money(loan.principal)}</p>
+        </div>
+        <div className="rounded-lg bg-slate-50 p-3">
+          <p className="text-xs text-slate-500">Taksit</p>
+          <p className="mt-1 font-semibold">{loan.installmentCount} x {money(monthlyPayment)}</p>
+        </div>
+        <div className="rounded-lg bg-slate-50 p-3">
+          <p className="text-xs text-slate-500">Toplam geri &#246;deme</p>
+          <p className="mt-1 font-semibold">{money(totalPayment)}</p>
+        </div>
+      </div>
+      <div className="mt-4 max-h-72 overflow-auto rounded-lg border border-slate-200">
+        <div className="grid grid-cols-[56px_1fr_1fr_1fr] bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-500">
+          <span>Ay</span>
+          <span>Taksit</span>
+          <span>Faiz</span>
+          <span>Kalan</span>
+        </div>
+        {schedule.map((item) => (
+          <div key={item.month} className="grid grid-cols-[56px_1fr_1fr_1fr] border-t border-slate-100 px-3 py-2 text-sm">
+            <span>{item.month}</span>
+            <span>{money(item.payment)}</span>
+            <span>{money(item.interest)}</span>
+            <span>{money(item.balance)}</span>
+          </div>
+        ))}
+      </div>
+    </article>
   );
 }
 function ModalHeader({ title, onClose }: { title: string; onClose: () => void }) {
