@@ -210,6 +210,14 @@ export default function Home() {
   }, [cards, movements, currentMonth]);
 
   const recentMovements = [...movements].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 6);
+  const chartTotal = totals.income + totals.expense;
+  const incomePercent = chartTotal > 0 ? Math.round((totals.income / chartTotal) * 100) : 0;
+  const expensePercent = chartTotal > 0 ? 100 - incomePercent : 0;
+  const chartStyle = {
+    background: chartTotal > 0
+      ? `conic-gradient(#10b981 0 ${incomePercent}%, #f43f5e ${incomePercent}% 100%)`
+      : "conic-gradient(#e2e8f0 0 100%)",
+  };
 
   function updateCard(field: keyof CardForm, value: string) {
     setCardForm((current) => ({
@@ -371,6 +379,65 @@ export default function Home() {
           ))}
         </section>
 
+        <section className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+          <article className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-950">Ayl&#305;k giri&#351; / &#231;&#305;k&#305;&#351;</h2>
+                <p className="mt-1 text-sm text-slate-500">Gelir ve gider oran&#305;</p>
+              </div>
+              <span className={`rounded-md px-2 py-1 text-xs font-medium ${totals.net >= 0 ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200" : "bg-rose-50 text-rose-700 ring-1 ring-rose-200"}`}>
+                Net {money(totals.net)}
+              </span>
+            </div>
+            <div className="mt-5 flex flex-col items-center gap-5 sm:flex-row">
+              <div className="relative grid h-40 w-40 shrink-0 place-items-center rounded-full" style={chartStyle}>
+                <div className="grid h-24 w-24 place-items-center rounded-full bg-white text-center shadow-inner">
+                  <div>
+                    <p className="text-xs text-slate-500">Gider</p>
+                    <p className="text-xl font-semibold text-slate-950">%{expensePercent}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="grid w-full gap-3">
+                <div className="rounded-lg bg-emerald-50 p-3">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-medium text-emerald-800">Para giri&#351;i</span>
+                    <span className="text-emerald-700">%{incomePercent}</span>
+                  </div>
+                  <p className="mt-2 text-xl font-semibold text-emerald-900">{money(totals.income)}</p>
+                </div>
+                <div className="rounded-lg bg-rose-50 p-3">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-medium text-rose-800">Harcama</span>
+                    <span className="text-rose-700">%{expensePercent}</span>
+                  </div>
+                  <p className="mt-2 text-xl font-semibold text-rose-900">{money(totals.expense)}</p>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <article className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <h2 className="text-lg font-semibold text-slate-950">Harcama da&#287;&#305;l&#305;m&#305;</h2>
+            <p className="mt-1 text-sm text-slate-500">Bu ayki hareketlerin kasa ve kart etkisi</p>
+            <div className="mt-5 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-lg bg-teal-50 p-4">
+                <p className="text-sm text-teal-700">Nakit kasa</p>
+                <p className="mt-2 text-xl font-semibold text-teal-950">{money(cash)}</p>
+              </div>
+              <div className="rounded-lg bg-sky-50 p-4">
+                <p className="text-sm text-sky-700">Kart borcu</p>
+                <p className="mt-2 text-xl font-semibold text-sky-950">{money(totals.totalDebt)}</p>
+              </div>
+              <div className="rounded-lg bg-violet-50 p-4">
+                <p className="text-sm text-violet-700">Kullan&#305;labilir limit</p>
+                <p className="mt-2 text-xl font-semibold text-violet-950">{money(totals.availableLimit)}</p>
+              </div>
+            </div>
+          </article>
+        </section>
+
         <section className="grid gap-6 lg:grid-cols-[1.35fr_0.85fr]">
           <div className="space-y-4">
             <div className="flex items-center justify-between gap-4">
@@ -464,19 +531,31 @@ export default function Home() {
             </div>
             <button type="button" onClick={clearAll} className="w-fit rounded-md border border-rose-200 px-3 py-2 text-sm text-rose-700 hover:bg-rose-50">Tüm verileri temizle</button>
           </div>
-          <div className="mt-4 divide-y divide-slate-100">
-            {recentMovements.length > 0 ? recentMovements.map((item) => (
-              <div key={item.id} className="grid gap-2 py-3 sm:grid-cols-[1fr_auto_auto] sm:items-center">
-                <div>
-                  <p className="font-medium">{item.category}</p>
-                  <p className="text-sm text-slate-500">{sourceName(item.source)}{item.note ? ` · ${item.note}` : ""}</p>
+          <div className="mt-4 grid gap-3">
+            {recentMovements.length > 0 ? recentMovements.map((item) => {
+              const isIncome = item.type === "income";
+
+              return (
+                <div key={item.id} className={`grid gap-3 rounded-lg border p-4 sm:grid-cols-[auto_1fr_auto] sm:items-center ${isIncome ? "border-emerald-100 bg-emerald-50" : "border-rose-100 bg-rose-50"}`}>
+                  <div className={`grid h-11 w-11 place-items-center rounded-full text-lg font-semibold ${isIncome ? "bg-emerald-600 text-white" : "bg-rose-600 text-white"}`}>
+                    {isIncome ? "+" : "-"}
+                  </div>
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-semibold text-slate-950">{item.category}</p>
+                      <span className={`rounded-full bg-white px-2 py-0.5 text-xs font-medium ${isIncome ? "text-emerald-700" : "text-rose-700"}`}>
+                        {isIncome ? "Para girişi" : "Harcama"}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-sm text-slate-600">{sourceName(item.source)}{item.note ? ` · ${item.note}` : ""}</p>
+                    <p className="mt-1 text-xs text-slate-500">{item.date}</p>
+                  </div>
+                  <p className={`text-lg font-semibold ${isIncome ? "text-emerald-700" : "text-rose-700"}`}>
+                    {isIncome ? "+" : "-"}{money(item.amount)}
+                  </p>
                 </div>
-                <p className="text-sm text-slate-500">{item.date}</p>
-                <p className={`font-semibold ${item.type === "income" ? "text-emerald-700" : "text-rose-700"}`}>
-                  {item.type === "income" ? "+" : "-"}{money(item.amount)}
-                </p>
-              </div>
-            )) : <p className="py-3 text-sm text-slate-500">Henüz işlem yok. Harcama veya para girişi ekleyerek başlayabilirsin.</p>}
+              );
+            }) : <p className="rounded-lg bg-slate-50 p-4 text-sm text-slate-500">Henüz işlem yok. Harcama veya para girişi ekleyerek başlayabilirsin.</p>}
           </div>
         </section>
       </div>
