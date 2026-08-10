@@ -45,6 +45,8 @@ type MovementForm = {
   date: string;
 };
 
+type Tab = "summary" | "creditCards" | "loans" | "wallet" | "kmh" | "movements";
+
 const dataKey = "kart-takip:v1:data";
 const oldCardsKey = "kart-takip:v0.5:cards";
 const colors = [
@@ -177,6 +179,7 @@ export default function Home() {
   const [cardModal, setCardModal] = useState(false);
   const [movementModal, setMovementModal] = useState(false);
   const [editingCardId, setEditingCardId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<Tab>("summary");
 
   useEffect(() => {
     window.setTimeout(() => {
@@ -212,7 +215,17 @@ export default function Home() {
     };
   }, [cards, movements, currentMonth]);
 
-  const recentMovements = [...movements].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 6);
+  const sortedMovements = [...movements].sort((a, b) => b.date.localeCompare(a.date));
+  const cashMovements = sortedMovements.filter((item) => item.source === "cash").slice(0, 8);
+  const tabs: { id: Tab; label: string; short: string }[] = [
+    { id: "summary", label: "\u00d6zet", short: "\u00d6zet" },
+    { id: "creditCards", label: "Kredi kartlar\u0131", short: "Kart" },
+    { id: "loans", label: "Krediler", short: "Kredi" },
+    { id: "wallet", label: "C\u00fczdan", short: "C\u00fczdan" },
+    { id: "kmh", label: "KMH", short: "KMH" },
+    { id: "movements", label: "Hareketler", short: "\u0130\u015flem" },
+  ];
+  const activeTabLabel = tabs.find((tab) => tab.id === activeTab)?.label ?? "\u00d6zet";
   const chartTotal = totals.income + totals.expense;
   const incomePercent = chartTotal > 0 ? Math.round((totals.income / chartTotal) * 100) : 0;
   const expensePercent = chartTotal > 0 ? 100 - incomePercent : 0;
@@ -384,224 +397,236 @@ export default function Home() {
           </div>
         </header>
 
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {[
-            ["Aylık harcama", money(totals.expense), "Bu ay girilen giderler"],
-            ["Nakit kasa", money(cash), "Eldeki nakit para"],
-            ["Aylık giriş / çıkış", money(totals.net), `${money(totals.income)} giriş, ${money(totals.expense)} çıkış`],
-            ["Toplam kart borcu", money(totals.totalDebt), `${cards.length} kartta güncel bakiye`],
-          ].map(([label, value, note]) => (
-            <article key={label} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-              <p className="text-sm text-slate-500">{label}</p>
-              <p className="mt-3 text-2xl font-semibold text-slate-950">{value}</p>
-              <p className="mt-2 text-sm text-slate-500">{note}</p>
-            </article>
-          ))}
-        </section>
-
-        <section className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
-          <article className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-950">Ayl&#305;k giri&#351; / &#231;&#305;k&#305;&#351;</h2>
-                <p className="mt-1 text-sm text-slate-500">Gelir ve gider oran&#305;</p>
-              </div>
-              <span className={`rounded-md px-2 py-1 text-xs font-medium ${totals.net >= 0 ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200" : "bg-rose-50 text-rose-700 ring-1 ring-rose-200"}`}>
-                Net {money(totals.net)}
-              </span>
-            </div>
-            <div className="mt-5 flex flex-col items-center gap-5 sm:flex-row">
-              <div className="relative grid h-40 w-40 shrink-0 place-items-center rounded-full" style={chartStyle}>
-                <div className="grid h-24 w-24 place-items-center rounded-full bg-white text-center shadow-inner">
-                  <div>
-                    <p className="text-xs text-slate-500">Gider</p>
-                    <p className="text-xl font-semibold text-slate-950">%{expensePercent}</p>
-                  </div>
-                </div>
-              </div>
-              <div className="grid w-full gap-3">
-                <div className="rounded-lg bg-emerald-50 p-3">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium text-emerald-800">Para giri&#351;i</span>
-                    <span className="text-emerald-700">%{incomePercent}</span>
-                  </div>
-                  <p className="mt-2 text-xl font-semibold text-emerald-900">{money(totals.income)}</p>
-                </div>
-                <div className="rounded-lg bg-rose-50 p-3">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium text-rose-800">Harcama</span>
-                    <span className="text-rose-700">%{expensePercent}</span>
-                  </div>
-                  <p className="mt-2 text-xl font-semibold text-rose-900">{money(totals.expense)}</p>
-                </div>
-              </div>
-            </div>
-          </article>
-
-          <article className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-semibold text-slate-950">Kart harcamaları</h2>
-            <p className="mt-1 text-sm text-slate-500">Giyim, seyahat, akaryakıt ve diğer kart harcamaları</p>
-            <div className="mt-5 flex flex-col items-center gap-5 sm:flex-row">
-              <div className="relative grid h-40 w-40 shrink-0 place-items-center rounded-full" style={{ background: cardCategoryGradient }}>
-                <div className="grid h-24 w-24 place-items-center rounded-full bg-white text-center shadow-inner">
-                  <div>
-                    <p className="text-xs text-slate-500">Kart gideri</p>
-                    <p className="text-base font-semibold text-slate-950">{money(cardExpenseTotal)}</p>
-                  </div>
-                </div>
-              </div>
-              <div className="grid w-full gap-2">
-                {cardExpenseByCategory.length > 0 ? cardExpenseByCategory.map((item) => (
-                  <div key={item.category} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
-                    <div className="flex items-center gap-2">
-                      <span className="h-3 w-3 rounded-full" style={{ background: item.color }} />
-                      <span className="text-sm font-medium text-slate-700">{item.category}</span>
-                    </div>
-                    <span className="text-sm font-semibold text-slate-950">{money(item.amount)}</span>
-                  </div>
-                )) : <p className="rounded-lg bg-slate-50 p-4 text-sm text-slate-500">Bu ay kartla harcama yok.</p>}
-              </div>
-            </div>
-          </article>
-        </section>
-
-        <section className="grid gap-6 lg:grid-cols-[1.35fr_0.85fr]">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between gap-4">
-              <h2 className="text-lg font-semibold">Kartlar</h2>
-              <button type="button" onClick={openAddCard} className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">Kart ekle</button>
-            </div>
-            {cards.length > 0 ? (
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {cards.map((card) => {
-                  const usage = card.limit > 0 ? Math.min(100, Math.round((card.debt / card.limit) * 100)) : 0;
-                  return (
-                    <article key={card.id} className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-                      <div className={`bg-gradient-to-br ${card.color} p-4 text-white`}>
-                        <div className="flex items-start justify-between gap-4">
-                          <div>
-                            <p className="text-sm text-white/85">{card.bank}</p>
-                            <h3 className="mt-1 text-lg font-semibold">{card.name}</h3>
-                          </div>
-                          <span className="rounded-md bg-black/20 px-2 py-1 text-xs">*{card.last4}</span>
-                        </div>
-                        <div className="mt-8 flex items-end justify-between gap-3">
-                          <div>
-                            <p className="text-xs text-white/80">Güncel borç</p>
-                            <p className="text-2xl font-semibold">{money(card.debt)}</p>
-                          </div>
-                          <div className="text-right text-sm text-white/85">
-                            <p>SKT: {card.expiryDate}</p>
-                            <p>Ödeme: {card.dueDate}</p>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="space-y-4 p-4">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-slate-500">Limit</span>
-                          <span className="font-medium">{money(card.limit)}</span>
-                        </div>
-                        <div>
-                          <div className="mb-2 flex justify-between text-xs text-slate-500">
-                            <span>Kullanım</span>
-                            <span>%{usage}</span>
-                          </div>
-                          <div className="h-2 rounded-full bg-slate-100">
-                            <div className="h-2 rounded-full bg-teal-500" style={{ width: `${usage}%` }} />
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          <button type="button" onClick={() => openEditCard(card)} className="rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">Düzenle</button>
-                          <button type="button" onClick={() => setCards((current) => current.filter((item) => item.id !== card.id))} className="rounded-md border border-rose-200 px-3 py-2 text-sm text-rose-700 hover:bg-rose-50">Sil</button>
-                        </div>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
-                Henüz kart yok. İlk kartını ekleyerek başlayabilirsin.
-              </div>
-            )}
-          </div>
-
-          <aside className="space-y-4">
-            <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-              <h2 className="text-lg font-semibold">Yaklaşan ödemeler</h2>
-              <div className="mt-3 divide-y divide-slate-100">
-                {cards.length > 0 ? cards.map((card) => (
-                  <div key={card.id} className="flex items-center justify-between py-3">
-                    <div>
-                      <p className="font-medium">{card.name}</p>
-                      <p className="text-sm text-slate-500">Son ödeme: {card.dueDate}</p>
-                    </div>
-                    <span className="rounded-md bg-sky-50 px-2 py-1 text-xs font-medium text-sky-700 ring-1 ring-sky-200">Planlandı</span>
-                  </div>
-                )) : <p className="py-3 text-sm text-slate-500">Ödeme takibi için kart ekle.</p>}
-              </div>
-            </div>
-            <div className="rounded-lg border border-teal-100 bg-teal-50 p-4">
-              <h2 className="font-semibold">Cihaz notu</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                PC ve telefon kayıtları şu an ayrı tutulur. Veriler tarayıcının kendi hafızasında saklandığı için otomatik senkronizasyon yok.
-              </p>
-            </div>
+        <div className="grid gap-5 lg:grid-cols-[220px_1fr]">
+          <aside className="hidden lg:block">
+            <nav className="sticky top-5 rounded-lg border border-slate-200 bg-white p-2 shadow-sm" aria-label={"Ana men\u00fc"}>
+              {tabs.map((tab) => {
+                const selected = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`mb-1 flex w-full items-center justify-between rounded-md px-3 py-3 text-left text-sm font-semibold transition last:mb-0 ${selected ? "bg-teal-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-100"}`}
+                  >
+                    <span>{tab.label}</span>
+                    {selected ? <span className="h-2 w-2 rounded-full bg-white" /> : null}
+                  </button>
+                );
+              })}
+            </nav>
           </aside>
-        </section>
 
-        <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-lg font-semibold">Son işlemler</h2>
-              <p className="mt-1 text-sm text-slate-500">Kart ve nakit hareketlerinin son kayıtları.</p>
+          <section className="min-w-0 pb-24 lg:pb-0">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-teal-700">B&#246;l&#252;m</p>
+                <h2 className="text-2xl font-semibold text-slate-950">{activeTabLabel}</h2>
+              </div>
             </div>
-            <button type="button" onClick={clearAll} className="w-fit rounded-md border border-rose-200 px-3 py-2 text-sm text-rose-700 hover:bg-rose-50">Tüm verileri temizle</button>
-          </div>
-          <div className="mt-4 grid gap-3">
-            {recentMovements.length > 0 ? recentMovements.map((item) => {
-              const isIncome = item.type === "income";
 
-              return (
-                <div key={item.id} className={`grid gap-3 rounded-lg border p-4 sm:grid-cols-[auto_1fr_auto] sm:items-center ${isIncome ? "border-emerald-100 bg-emerald-50" : "border-rose-100 bg-rose-50"}`}>
-                  <div className={`grid h-11 w-11 place-items-center rounded-full text-lg font-semibold ${isIncome ? "bg-emerald-600 text-white" : "bg-rose-600 text-white"}`}>
-                    {isIncome ? "+" : "-"}
-                  </div>
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-semibold text-slate-950">{item.category}</p>
-                      <span className={`rounded-full bg-white px-2 py-0.5 text-xs font-medium ${isIncome ? "text-emerald-700" : "text-rose-700"}`}>
-                        {isIncome ? "Para girişi" : "Harcama"}
+            {activeTab === "summary" ? (
+              <div className="space-y-5">
+                <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  {[
+                    ["Ayl\u0131k harcama", money(totals.expense), "Bu ay girilen giderler"],
+                    ["Nakit kasa", money(cash), "Eldeki nakit para"],
+                    ["Ayl\u0131k harcama", money(totals.expense), "Bu ay girilen giderler"],
+                    ["Toplam kart borcu", money(totals.totalDebt), `${cards.length} kartta g\u00fcncel bakiye`],
+                  ].map(([label, value, note]) => (
+                    <article key={label} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                      <p className="text-sm text-slate-500">{label}</p>
+                      <p className="mt-3 text-2xl font-semibold text-slate-950">{value}</p>
+                      <p className="mt-2 text-sm text-slate-500">{note}</p>
+                    </article>
+                  ))}
+                </section>
+
+                <section className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+                  <article className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <h2 className="text-lg font-semibold text-slate-950">Ayl&#305;k giri&#351; / &#231;&#305;k&#305;&#351;</h2>
+                        <p className="mt-1 text-sm text-slate-500">Gelir ve gider oran&#305;</p>
+                      </div>
+                      <span className={`rounded-md px-2 py-1 text-xs font-medium ${totals.net >= 0 ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200" : "bg-rose-50 text-rose-700 ring-1 ring-rose-200"}`}>
+                        Net {money(totals.net)}
                       </span>
                     </div>
-                    <p className="mt-1 text-sm text-slate-600">{sourceName(item.source)}{item.note ? ` · ${item.note}` : ""}</p>
-                    <p className="mt-1 text-xs text-slate-500">{item.date}</p>
-                  </div>
-                  <p className={`text-lg font-semibold ${isIncome ? "text-emerald-700" : "text-rose-700"}`}>
-                    {isIncome ? "+" : "-"}{money(item.amount)}
-                  </p>
+                    <div className="mt-5 flex flex-col items-center gap-5 sm:flex-row">
+                      <div className="relative grid h-40 w-40 shrink-0 place-items-center rounded-full" style={chartStyle}>
+                        <div className="grid h-24 w-24 place-items-center rounded-full bg-white text-center shadow-inner">
+                          <div>
+                            <p className="text-xs text-slate-500">Gider</p>
+                            <p className="text-xl font-semibold text-slate-950">%{expensePercent}</p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="grid w-full gap-3">
+                        <div className="rounded-lg bg-emerald-50 p-3">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="font-medium text-emerald-800">Para giri&#351;i</span>
+                            <span className="text-emerald-700">%{incomePercent}</span>
+                          </div>
+                          <p className="mt-2 text-xl font-semibold text-emerald-900">{money(totals.income)}</p>
+                        </div>
+                        <div className="rounded-lg bg-rose-50 p-3">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="font-medium text-rose-800">Harcama</span>
+                            <span className="text-rose-700">%{expensePercent}</span>
+                          </div>
+                          <p className="mt-2 text-xl font-semibold text-rose-900">{money(totals.expense)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </article>
+
+                  <article className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                    <h2 className="text-lg font-semibold text-slate-950">Kart harcamalar&#305;</h2>
+                    <p className="mt-1 text-sm text-slate-500">Giyim, seyahat, akaryak&#305;t ve di&#287;er kart harcamalar&#305;</p>
+                    <div className="mt-5 flex flex-col items-center gap-5 sm:flex-row">
+                      <div className="relative grid h-40 w-40 shrink-0 place-items-center rounded-full" style={{ background: cardCategoryGradient }}>
+                        <div className="grid h-24 w-24 place-items-center rounded-full bg-white text-center shadow-inner">
+                          <div>
+                            <p className="text-xs text-slate-500">Kart gideri</p>
+                            <p className="text-base font-semibold text-slate-950">{money(cardExpenseTotal)}</p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="grid w-full gap-2">
+                        {cardExpenseByCategory.length > 0 ? cardExpenseByCategory.map((item) => (
+                          <div key={item.category} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
+                            <div className="flex items-center gap-2">
+                              <span className="h-3 w-3 rounded-full" style={{ background: item.color }} />
+                              <span className="text-sm font-medium text-slate-700">{item.category}</span>
+                            </div>
+                            <span className="text-sm font-semibold text-slate-950">{money(item.amount)}</span>
+                          </div>
+                        )) : <p className="rounded-lg bg-slate-50 p-4 text-sm text-slate-500">Bu ay kartla harcama yok.</p>}
+                      </div>
+                    </div>
+                  </article>
+                </section>
+              </div>
+            ) : null}
+
+            {activeTab === "creditCards" ? (
+              <div className="space-y-5">
+                <div className="flex items-center justify-between gap-4">
+                  <p className="text-sm text-slate-500">Kapal&#305; kartta limit g&#246;r&#252;n&#252;r. Detay i&#231;in kart&#305;n &#252;zerine gel veya karta dokun.</p>
+                  <button type="button" onClick={openAddCard} className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">Kart ekle</button>
                 </div>
+                {cards.length > 0 ? (
+                  <div className="grid gap-8 overflow-visible md:grid-cols-2 xl:grid-cols-3">
+                    {cards.map((card) => {
+                      const usage = card.limit > 0 ? Math.min(100, Math.round((card.debt / card.limit) * 100)) : 0;
+                      return <CardTile key={card.id} card={card} usage={usage} onEdit={() => openEditCard(card)} onDelete={() => setCards((current) => current.filter((item) => item.id !== card.id))} />;
+                    })}
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
+                    Hen&#252;z kart yok. &#304;lk kart&#305;n&#305; ekleyerek ba&#351;layabilirsin.
+                  </div>
+                )}
+                <article className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                  <h2 className="text-lg font-semibold">Yakla&#351;an &#246;demeler</h2>
+                  <div className="mt-3 divide-y divide-slate-100">
+                    {cards.length > 0 ? cards.map((card) => (
+                      <div key={card.id} className="flex items-center justify-between gap-3 py-3">
+                        <div>
+                          <p className="font-medium">{card.name}</p>
+                          <p className="text-sm text-slate-500">Son &#246;deme: {card.dueDate}</p>
+                        </div>
+                        <span className="text-sm font-semibold text-slate-950">{money(card.debt)}</span>
+                      </div>
+                    )) : <p className="py-3 text-sm text-slate-500">&#214;deme takibi i&#231;in kart ekle.</p>}
+                  </div>
+                </article>
+              </div>
+            ) : null}
+
+            {activeTab === "loans" ? (
+              <section className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-sm text-slate-600">
+                <h2 className="text-lg font-semibold text-slate-950">Krediler</h2>
+                <p className="mt-2 leading-6">Bu b&#246;l&#252;m kredi takibi i&#231;in ayr&#305;ld&#305;. Bir sonraki ad&#305;mda kredi ad&#305;, taksit tutar&#305;, kalan taksit ve &#246;deme g&#252;n&#252; ekleme ekran&#305;n&#305; burada a&#231;abiliriz.</p>
+              </section>
+            ) : null}
+
+            {activeTab === "wallet" ? (
+              <section className="grid gap-4 lg:grid-cols-[0.85fr_1.15fr]">
+                <article className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                  <p className="text-sm text-slate-500">Nakit kasa</p>
+                  <p className="mt-3 text-3xl font-semibold text-slate-950">{money(cash)}</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-500">Eldeki nakit paran&#305; ve nakit giri&#351; &#231;&#305;k&#305;&#351;lar&#305;n&#305; burada takip edebilirsin.</p>
+                  <div className="mt-5 grid gap-3">
+                    <button type="button" onClick={() => openMovement("income")} className="rounded-md bg-teal-600 px-4 py-3 text-sm font-semibold text-white hover:bg-teal-700">Kasaya para ekle</button>
+                    <button type="button" onClick={() => openMovement("expense")} className="rounded-md border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100">Nakit harcama ekle</button>
+                  </div>
+                </article>
+                <article className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                  <h2 className="text-lg font-semibold">C&#252;zdan hareketleri</h2>
+                  <MovementList items={cashMovements} sourceName={sourceName} />
+                </article>
+              </section>
+            ) : null}
+
+            {activeTab === "kmh" ? (
+              <section className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-sm text-slate-600">
+                <h2 className="text-lg font-semibold text-slate-950">KMH</h2>
+                <p className="mt-2 leading-6">Kredili mevduat hesab&#305; takibi i&#231;in ayr&#305; alan haz&#305;r. Limit, kullan&#305;lan tutar ve faiz/&#246;deme takibini burada ayr&#305;ca tasarlayabiliriz.</p>
+              </section>
+            ) : null}
+
+            {activeTab === "movements" ? (
+              <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h2 className="text-lg font-semibold">Hareketler</h2>
+                    <p className="mt-1 text-sm text-slate-500">Kart ve nakit hareketlerinin kay&#305;tlar&#305;.</p>
+                  </div>
+                  <button type="button" onClick={clearAll} className="w-fit rounded-md border border-rose-200 px-3 py-2 text-sm text-rose-700 hover:bg-rose-50">T&#252;m verileri temizle</button>
+                </div>
+                <MovementList items={sortedMovements} sourceName={sourceName} empty={"Hen\u00fcz i\u015flem yok. Harcama veya para giri\u015fi ekleyerek ba\u015flayabilirsin."} />
+              </section>
+            ) : null}
+          </section>
+        </div>
+
+        <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-2 py-2 shadow-[0_-10px_30px_rgba(15,23,42,0.10)] backdrop-blur lg:hidden" aria-label={"Mobil men\u00fc"}>
+          <div className="mx-auto grid max-w-2xl grid-cols-6 gap-1">
+            {tabs.map((tab) => {
+              const selected = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`rounded-md px-1 py-2 text-xs font-semibold transition ${selected ? "bg-teal-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}
+                >
+                  {tab.short}
+                </button>
               );
-            }) : <p className="rounded-lg bg-slate-50 p-4 text-sm text-slate-500">Henüz işlem yok. Harcama veya para girişi ekleyerek başlayabilirsin.</p>}
+            })}
           </div>
-        </section>
+        </nav>
+
       </div>
 
       {cardModal ? (
         <div className="fixed inset-0 z-50 flex items-end bg-slate-950/35 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center">
           <form onSubmit={saveCard} className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-slate-200 bg-white p-5 shadow-2xl">
-            <ModalHeader title={editingCardId ? "Kartı düzenle" : "Kart ekle"} onClose={() => setCardModal(false)} />
+            <ModalHeader title={editingCardId ? "Kart\u0131 d\u00fczenle" : "Kart ekle"} onClose={() => setCardModal(false)} />
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <TextField label="Banka" value={cardForm.bank} onChange={(value) => updateCard("bank", value)} placeholder="Garanti BBVA" />
-              <TextField label="Kart adı" value={cardForm.name} onChange={(value) => updateCard("name", value)} placeholder="Bonus Platinum" />
+              <TextField label={"Kart ad\u0131"} value={cardForm.name} onChange={(value) => updateCard("name", value)} placeholder="Bonus Platinum" />
               <TextField label="Son 4 hane" value={cardForm.last4} onChange={(value) => updateCard("last4", value)} placeholder="4821" inputMode="numeric" maxLength={4} />
               <SelectPair label="Son kullanma tarihi" first={cardForm.expiryMonth} second={cardForm.expiryYear} firstOptions={months} secondOptions={years} onFirst={(value) => updateCard("expiryMonth", value)} onSecond={(value) => updateCard("expiryYear", value)} />
-              <SelectPair label="Son ödeme tarihi" first={cardForm.dueDay} second={cardForm.dueMonth} firstOptions={days} secondOptions={months} onFirst={(value) => updateCard("dueDay", value)} onSecond={(value) => updateCard("dueMonth", value)} />
+              <SelectPair label={"Son \u00f6deme tarihi"} first={cardForm.dueDay} second={cardForm.dueMonth} firstOptions={days} secondOptions={months} onFirst={(value) => updateCard("dueDay", value)} onSecond={(value) => updateCard("dueMonth", value)} />
               <TextField label="Limit" value={cardForm.limit} onChange={(value) => updateCard("limit", value)} onBlur={() => setCardForm((current) => ({ ...current, limit: moneyInput(current.limit) }))} placeholder="14.568,00 TL" inputMode="decimal" />
-              <TextField label="Güncel borç" value={cardForm.debt} onChange={(value) => updateCard("debt", value)} onBlur={() => setCardForm((current) => ({ ...current, debt: moneyInput(current.debt) }))} placeholder="14.568,00 TL" inputMode="decimal" wide />
+              <TextField label={"G\u00fcncel bor\u00e7"} value={cardForm.debt} onChange={(value) => updateCard("debt", value)} onBlur={() => setCardForm((current) => ({ ...current, debt: moneyInput(current.debt) }))} placeholder="14.568,00 TL" inputMode="decimal" wide />
             </div>
             {cardError ? <ErrorText text={cardError} /> : null}
-            <ModalActions onCancel={() => setCardModal(false)} submit={editingCardId ? "Değişiklikleri kaydet" : "Kartı kaydet"} />
+            <ModalActions onCancel={() => setCardModal(false)} submit={editingCardId ? "De\u011fi\u015fiklikleri kaydet" : "Kart\u0131 kaydet"} />
           </form>
         </div>
       ) : null}
@@ -609,13 +634,13 @@ export default function Home() {
       {movementModal ? (
         <div className="fixed inset-0 z-50 flex items-end bg-slate-950/35 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center">
           <form onSubmit={saveMovement} className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-lg border border-slate-200 bg-white p-5 shadow-2xl">
-            <ModalHeader title={movementForm.type === "income" ? "Para girişi" : "Harcama ekle"} onClose={() => setMovementModal(false)} />
+            <ModalHeader title={movementForm.type === "income" ? "Para giri\u015fi" : "Harcama ekle"} onClose={() => setMovementModal(false)} />
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <label className="space-y-2 text-sm text-slate-700">
-                <span>İşlem türü</span>
+                <span>{"\u0130\u015flem t\u00fcr\u00fc"}</span>
                 <select value={movementForm.type} onChange={(event) => updateMovement("type", event.target.value as MovementForm["type"])} className="field">
                   <option value="expense">Harcama</option>
-                  <option value="income">Para girişi</option>
+                  <option value="income">{"Para giri\u015fi"}</option>
                 </select>
               </label>
               <label className="space-y-2 text-sm text-slate-700">
@@ -627,16 +652,16 @@ export default function Home() {
               </label>
               <TextField label="Tutar" value={movementForm.amount} onChange={(value) => updateMovement("amount", value)} onBlur={() => setMovementForm((current) => ({ ...current, amount: moneyInput(current.amount) }))} placeholder="14.568,00 TL" inputMode="decimal" />
               <TextField label="Tarih" type="date" value={movementForm.date} onChange={(value) => updateMovement("date", value)} />
-                            <label className="space-y-2 text-sm text-slate-700">
+              <label className="space-y-2 text-sm text-slate-700">
                 <span>Kategori</span>
                 <select value={movementForm.category} onChange={(event) => updateMovement("category", event.target.value)} className="field">
                   {expenseCategories.map((category) => <option key={category} value={category}>{category}</option>)}
                 </select>
               </label>
-              <TextField label="Not" value={movementForm.note} onChange={(value) => updateMovement("note", value)} placeholder="İsteğe bağlı" />
+              <TextField label="Not" value={movementForm.note} onChange={(value) => updateMovement("note", value)} placeholder={"\u0130ste\u011fe ba\u011fl\u0131"} />
             </div>
             {movementError ? <ErrorText text={movementError} /> : null}
-            <ModalActions onCancel={() => setMovementModal(false)} submit="İşlemi kaydet" />
+            <ModalActions onCancel={() => setMovementModal(false)} submit={"\u0130\u015flemi kaydet"} />
           </form>
         </div>
       ) : null}
@@ -644,6 +669,111 @@ export default function Home() {
   );
 }
 
+function CardTile({
+  card,
+  usage,
+  onEdit,
+  onDelete,
+}: {
+  card: Card;
+  usage: number;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="group relative overflow-visible rounded-2xl pb-16 focus-within:z-20 hover:z-20">
+      <article
+        role="button"
+        tabIndex={0}
+        onClick={() => setOpen((current) => !current)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            setOpen((current) => !current);
+          }
+        }}
+        className={`aspect-[1.586/1] cursor-pointer rounded-2xl bg-gradient-to-br ${card.color} p-5 text-white shadow-sm ring-1 ring-white/20`}
+      >
+        <div className="flex h-full flex-col justify-between">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm text-white/80">{card.bank}</p>
+              <h3 className="mt-1 text-lg font-semibold">{card.name}</h3>
+            </div>
+            <span className="rounded-full bg-white/20 px-3 py-1 text-xs font-semibold">*{card.last4}</span>
+          </div>
+          <div>
+            <p className="text-xs uppercase text-white/70">Limit</p>
+            <p className="mt-1 text-2xl font-semibold">{money(card.limit)}</p>
+          </div>
+        </div>
+      </article>
+      <div className={`absolute inset-x-3 top-[72%] z-10 rounded-xl border border-slate-200 bg-white p-4 text-slate-950 shadow-xl transition ${open ? "pointer-events-auto translate-y-0 opacity-100" : "pointer-events-none translate-y-3 opacity-0 group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:translate-y-0 group-focus-within:opacity-100"}`}>
+        <div className="grid gap-3 text-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-slate-500">G&#252;ncel bor&#231;</span>
+            <span className="font-semibold">{money(card.debt)}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-slate-500">Kullan&#305;m</span>
+            <span className="font-semibold">%{usage}</span>
+          </div>
+          <div className="h-2 rounded-full bg-slate-100">
+            <div className="h-2 rounded-full bg-teal-500" style={{ width: `${usage}%` }} />
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-xs text-slate-500">
+            <span>SKT: {card.expiryDate}</span>
+            <span className="text-right">&#214;deme: {card.dueDate}</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <button type="button" onClick={(event) => { event.stopPropagation(); onEdit(); }} className="rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">D&#252;zenle</button>
+            <button type="button" onClick={(event) => { event.stopPropagation(); onDelete(); }} className="rounded-md border border-rose-200 px-3 py-2 text-sm text-rose-700 hover:bg-rose-50">Sil</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+function MovementList({
+  items,
+  sourceName,
+  empty = "Hen\u00fcz kay\u0131t yok.",
+}: {
+  items: Movement[];
+  sourceName: (source: string) => string;
+  empty?: string;
+}) {
+  return (
+    <div className="mt-4 grid gap-3">
+      {items.length > 0 ? items.map((item) => {
+        const isIncome = item.type === "income";
+
+        return (
+          <div key={item.id} className={`grid gap-3 rounded-lg border p-4 sm:grid-cols-[auto_1fr_auto] sm:items-center ${isIncome ? "border-emerald-100 bg-emerald-50" : "border-rose-100 bg-rose-50"}`}>
+            <div className={`grid h-11 w-11 place-items-center rounded-full text-lg font-semibold ${isIncome ? "bg-emerald-600 text-white" : "bg-rose-600 text-white"}`}>
+              {isIncome ? "+" : "-"}
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="font-semibold text-slate-950">{item.category}</p>
+                <span className={`rounded-full bg-white px-2 py-0.5 text-xs font-medium ${isIncome ? "text-emerald-700" : "text-rose-700"}`}>
+                  {isIncome ? "Para giri\u015fi" : "Harcama"}
+                </span>
+              </div>
+              <p className="mt-1 text-sm text-slate-600">{sourceName(item.source)}{item.note ? ` Â· ${item.note}` : ""}</p>
+              <p className="mt-1 text-xs text-slate-500">{item.date}</p>
+            </div>
+            <p className={`text-lg font-semibold ${isIncome ? "text-emerald-700" : "text-rose-700"}`}>
+              {isIncome ? "+" : "-"}{money(item.amount)}
+            </p>
+          </div>
+        );
+      }) : <p className="rounded-lg bg-slate-50 p-4 text-sm text-slate-500">{empty}</p>}
+    </div>
+  );
+}
 function ModalHeader({ title, onClose }: { title: string; onClose: () => void }) {
   return (
     <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-4">
