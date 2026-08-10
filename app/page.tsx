@@ -286,11 +286,6 @@ export default function Home() {
   const chartTotal = totals.income + totals.expense;
   const incomePercent = chartTotal > 0 ? Math.round((totals.income / chartTotal) * 100) : 0;
   const expensePercent = chartTotal > 0 ? 100 - incomePercent : 0;
-  const chartStyle = {
-    background: chartTotal > 0
-      ? `conic-gradient(#10b981 0 ${incomePercent}%, #f43f5e ${incomePercent}% 100%)`
-      : "conic-gradient(#e2e8f0 0 100%)",
-  };
   const cardExpenseByCategory = expenseCategories.map((category, index) => {
     const amount = movements
       .filter((item) => item.type === "expense" && item.source !== "cash" && item.category === category && monthKey(item.date) === currentMonth)
@@ -299,15 +294,6 @@ export default function Home() {
     return { category, amount, color: categoryColors[index % categoryColors.length] };
   }).filter((item) => item.amount > 0);
   const cardExpenseTotal = cardExpenseByCategory.reduce((sum, item) => sum + item.amount, 0);
-  let categoryCursor = 0;
-  const cardCategoryGradient = cardExpenseTotal > 0
-    ? `conic-gradient(${cardExpenseByCategory.map((item) => {
-        const start = categoryCursor;
-        const size = (item.amount / cardExpenseTotal) * 100;
-        categoryCursor += size;
-        return `${item.color} ${start}% ${categoryCursor}%`;
-      }).join(", ")})`
-    : "conic-gradient(#e2e8f0 0 100%)";
 
   function updateCard(field: keyof CardForm, value: string) {
     setCardForm((current) => ({
@@ -509,7 +495,7 @@ export default function Home() {
             {activeTab === "summary" ? (
               <div className="space-y-5">
                 <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  <article className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                  <article className="kt-card rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
                     <p className="text-sm text-slate-500">G&#252;nl&#252;k harcama</p>
                     <p className="mt-3 text-2xl font-semibold text-slate-950">{money(totals.expense)}</p>
                     <div className="mt-4 flex h-16 items-end gap-1">
@@ -529,7 +515,7 @@ export default function Home() {
                     ["Ayl\u0131k giri\u015f / \u00e7\u0131k\u0131\u015f", money(totals.net), `${money(totals.income)} giri\u015f, ${money(totals.expense)} \u00e7\u0131k\u0131\u015f`],
                     ["Toplam kart borcu", money(totals.totalDebt), `${cards.length} kartta g\u00fcncel bakiye`],
                   ].map(([label, value, note]) => (
-                    <article key={label} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                    <article key={label} className="kt-card rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
                       <p className="text-sm text-slate-500">{label}</p>
                       <p className="mt-3 text-2xl font-semibold text-slate-950">{value}</p>
                       <p className="mt-2 text-sm text-slate-500">{note}</p>
@@ -538,67 +524,34 @@ export default function Home() {
                 </section>
 
                 <section className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
-                  <article className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                  <article className="kt-card rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <h2 className="text-lg font-semibold text-slate-950">Ayl&#305;k giri&#351; / &#231;&#305;k&#305;&#351;</h2>
-                        <p className="mt-1 text-sm text-slate-500">Gelir ve gider oran&#305;</p>
+                        <p className="mt-1 text-sm text-slate-500">Gelir ve gider karÅŸÄ±laÅŸtÄ±rmasÄ±</p>
                       </div>
                       <span className={`rounded-md px-2 py-1 text-xs font-medium ${totals.net >= 0 ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200" : "bg-rose-50 text-rose-700 ring-1 ring-rose-200"}`}>
                         Net {money(totals.net)}
                       </span>
                     </div>
-                    <div className="mt-5 flex flex-col items-center gap-5 sm:flex-row">
-                      <div className="relative grid h-40 w-40 shrink-0 place-items-center rounded-full" style={chartStyle}>
-                        <div className="grid h-24 w-24 place-items-center rounded-full bg-white text-center shadow-inner">
-                          <div>
-                            <p className="text-xs text-slate-500">Gider</p>
-                            <p className="text-xl font-semibold text-slate-950">%{expensePercent}</p>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="grid w-full gap-3">
-                        <div className="rounded-lg bg-emerald-50 p-3">
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="font-medium text-emerald-800">Para giri&#351;i</span>
-                            <span className="text-emerald-700">%{incomePercent}</span>
-                          </div>
-                          <p className="mt-2 text-xl font-semibold text-emerald-900">{money(totals.income)}</p>
-                        </div>
-                        <div className="rounded-lg bg-rose-50 p-3">
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="font-medium text-rose-800">Harcama</span>
-                            <span className="text-rose-700">%{expensePercent}</span>
-                          </div>
-                          <p className="mt-2 text-xl font-semibold text-rose-900">{money(totals.expense)}</p>
-                        </div>
-                      </div>
+                    <div className="mt-5 grid gap-4">
+                      <MetricBar label="Para giriÅŸi" value={totals.income} percent={incomePercent} tone="income" />
+                      <MetricBar label="Harcama" value={totals.expense} percent={expensePercent} tone="expense" />
                     </div>
                   </article>
 
-                  <article className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-                    <h2 className="text-lg font-semibold text-slate-950">Kart harcamalar&#305;</h2>
-                    <p className="mt-1 text-sm text-slate-500">Giyim, seyahat, akaryak&#305;t ve di&#287;er kart harcamalar&#305;</p>
-                    <div className="mt-5 flex flex-col items-center gap-5 sm:flex-row">
-                      <div className="relative grid h-40 w-40 shrink-0 place-items-center rounded-full" style={{ background: cardCategoryGradient }}>
-                        <div className="grid h-24 w-24 place-items-center rounded-full bg-white text-center shadow-inner">
-                          <div>
-                            <p className="text-xs text-slate-500">Kart gideri</p>
-                            <p className="text-base font-semibold text-slate-950">{money(cardExpenseTotal)}</p>
-                          </div>
-                        </div>
+                  <article className="kt-card rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <h2 className="text-lg font-semibold text-slate-950">Kart harcamalarÄ±</h2>
+                        <p className="mt-1 text-sm text-slate-500">Kategori bazÄ±nda daÄŸÄ±lÄ±m</p>
                       </div>
-                      <div className="grid w-full gap-2">
-                        {cardExpenseByCategory.length > 0 ? cardExpenseByCategory.map((item) => (
-                          <div key={item.category} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
-                            <div className="flex items-center gap-2">
-                              <span className="h-3 w-3 rounded-full" style={{ background: item.color }} />
-                              <span className="text-sm font-medium text-slate-700">{item.category}</span>
-                            </div>
-                            <span className="text-sm font-semibold text-slate-950">{money(item.amount)}</span>
-                          </div>
-                        )) : <p className="rounded-lg bg-slate-50 p-4 text-sm text-slate-500">Bu ay kartla harcama yok.</p>}
-                      </div>
+                      <span className="rounded-md bg-slate-50 px-2 py-1 text-xs font-medium text-slate-600">{money(cardExpenseTotal)}</span>
+                    </div>
+                    <div className="mt-5 grid gap-3">
+                      {cardExpenseByCategory.length > 0 ? cardExpenseByCategory.map((item) => (
+                        <CategoryBar key={item.category} item={item} total={cardExpenseTotal} />
+                      )) : <p className="rounded-lg bg-slate-50 p-4 text-sm text-slate-500">Bu ay kartla harcama yok.</p>}
                     </div>
                   </article>
                 </section>
@@ -626,7 +579,7 @@ export default function Home() {
                     Hen&#252;z kart yok. &#304;lk kart&#305;n&#305; ekleyerek ba&#351;layabilirsin.
                   </div>
                 )}
-                <article className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <article className="kt-card rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                   <h2 className="text-lg font-semibold">Yakla&#351;an &#246;demeler</h2>
                   <div className="mt-3 divide-y divide-slate-100">
                     {cards.length > 0 ? cards.map((card) => (
@@ -664,7 +617,7 @@ export default function Home() {
 
             {activeTab === "wallet" ? (
               <section className="grid gap-4 lg:grid-cols-[0.85fr_1.15fr]">
-                <article className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <article className="kt-card rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                   <p className="text-sm text-slate-500">Nakit kasa</p>
                   <p className="mt-3 text-3xl font-semibold text-slate-950">{money(cash)}</p>
                   <p className="mt-2 text-sm leading-6 text-slate-500">Eldeki nakit paran&#305; ve nakit giri&#351; &#231;&#305;k&#305;&#351;lar&#305;n&#305; burada takip edebilirsin.</p>
@@ -673,7 +626,7 @@ export default function Home() {
                     <button type="button" onClick={() => openMovement("expense")} className="rounded-md border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100">Nakit harcama ekle</button>
                   </div>
                 </article>
-                <article className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <article className="kt-card rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                   <h2 className="text-lg font-semibold">C&#252;zdan hareketleri</h2>
                   <MovementList items={cashMovements} sourceName={sourceName} />
                 </article>
@@ -688,7 +641,7 @@ export default function Home() {
             ) : null}
 
             {activeTab === "movements" ? (
-              <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <section className="kt-card rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <h2 className="text-lg font-semibold">Hareketler</h2>
@@ -803,6 +756,43 @@ export default function Home() {
   );
 }
 
+
+function MetricBar({ label, value, percent, tone }: { label: string; value: number; percent: number; tone: "income" | "expense" }) {
+  const color = tone === "income" ? "bg-emerald-500" : "bg-rose-500";
+  const soft = tone === "income" ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700";
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-3">
+      <div className="flex items-center justify-between gap-3 text-sm">
+        <span className="font-medium text-slate-700">{label}</span>
+        <span className={`rounded-md px-2 py-1 text-xs font-semibold ${soft}`}>%{percent}</span>
+      </div>
+      <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-slate-100">
+        <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.max(4, percent)}%` }} />
+      </div>
+      <p className="mt-2 text-xl font-semibold text-slate-950">{money(value)}</p>
+    </div>
+  );
+}
+
+function CategoryBar({ item, total }: { item: { category: string; amount: number; color: string }; total: number }) {
+  const percent = total > 0 ? Math.round((item.amount / total) * 100) : 0;
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: item.color }} />
+          <span className="truncate text-sm font-medium text-slate-700">{item.category}</span>
+        </div>
+        <span className="shrink-0 text-sm font-semibold text-slate-950">{money(item.amount)}</span>
+      </div>
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
+        <div className="h-full rounded-full" style={{ width: `${Math.max(4, percent)}%`, background: item.color }} />
+      </div>
+    </div>
+  );
+}
 function CardTile({
   card,
   usage,
@@ -1011,7 +1001,7 @@ function LoanCard({ loan, onDelete }: { loan: Loan; onDelete: () => void }) {
   const totalPayment = monthlyPayment * loan.installmentCount;
 
   return (
-    <article className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+    <article className="kt-card rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h3 className="text-lg font-semibold text-slate-950">{loan.name}</h3>
