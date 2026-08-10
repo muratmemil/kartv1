@@ -62,6 +62,13 @@ type LoanForm = {
   monthlyRate: string;
 };
 
+type AppData = {
+  cards: Card[];
+  movements: Movement[];
+  cash: number;
+  loans: Loan[];
+};
+
 type Tab = "summary" | "creditCards" | "loans" | "wallet" | "kmh" | "movements";
 
 const dataKey = "kart-takip:v1:data";
@@ -175,7 +182,7 @@ function safeLoan(raw: Partial<Loan>): Loan {
   };
 }
 
-function readData() {
+function readLocalData(): AppData {
   try {
     const stored = window.localStorage.getItem(dataKey);
     if (stored) {
@@ -205,6 +212,32 @@ function readData() {
   return { cards: [], movements: [], loans: [], cash: 0 };
 }
 
+function hasData(data: AppData) {
+  return data.cards.length > 0 || data.movements.length > 0 || data.loans.length > 0 || data.cash !== 0;
+}
+
+async function loadDatabaseData(): Promise<AppData> {
+  const response = await fetch("/api/data", { cache: "no-store" });
+  if (!response.ok) throw new Error("Veri okunamadi.");
+  const data = await response.json() as { cards?: Partial<Card>[]; movements?: Partial<Movement>[]; loans?: Partial<Loan>[]; cash?: number };
+
+  return {
+    cards: (data.cards ?? []).map(safeCard).filter((card) => card.bank && card.name && card.last4.length === 4),
+    movements: (data.movements ?? []).map(safeMovement).filter((item) => item.amount > 0),
+    cash: Number(data.cash) || 0,
+    loans: (data.loans ?? []).map(safeLoan).filter((loan) => loan.name && loan.principal > 0),
+  };
+}
+
+async function saveDatabaseData(data: AppData) {
+  const response = await fetch("/api/data", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) throw new Error("Veri kaydedilemedi.");
+}
 export default function Home() {
   const [cards, setCards] = useState<Card[]>([]);
   const [movements, setMovements] = useState<Movement[]>([]);
@@ -225,20 +258,49 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>("summary");
 
   useEffect(() => {
-    window.setTimeout(() => {
-      const data = readData();
-      setCards(data.cards);
-      setMovements(data.movements);
-      setCash(data.cash);
-      setReady(true);
-    }, 0);
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const databaseData = await loadDatabaseData();
+        const localData = readLocalData();
+        const shouldMigrate = !hasData(databaseData) && hasData(localData);
+        const data = shouldMigrate ? localData : databaseData;
+
+        if (shouldMigrate) {
+          await saveDatabaseData(localData);
+        }
+
+        if (!cancelled) {
+          setCards(data.cards);
+          setMovements(data.movements);
+          setCash(data.cash);
+          setLoans(data.loans);
+        }
+      } catch {
+        const localData = readLocalData();
+        if (!cancelled) {
+          setCards(localData.cards);
+          setMovements(localData.movements);
+          setCash(localData.cash);
+          setLoans(localData.loans);
+        }
+      } finally {
+        if (!cancelled) setReady(true);
+      }
+    }
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
-    if (ready) {
-      window.localStorage.setItem(dataKey, JSON.stringify({ cards, movements, cash }));
-    }
-  }, [cards, movements, cash, ready]);
+    if (!ready) return;
+    void saveDatabaseData({ cards, movements, cash, loans });
+  }, [cards, movements, cash, loans, ready]);
 
   const currentMonth = monthKey(today);
   const totals = useMemo(() => {
@@ -442,6 +504,7 @@ export default function Home() {
     setCards([]);
     setMovements([]);
     setCash(0);
+    setLoans([]);
     window.localStorage.removeItem(dataKey);
     window.localStorage.removeItem(oldCardsKey);
   }
