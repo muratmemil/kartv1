@@ -12,7 +12,6 @@ type Card = {
   debt: number;
   limit: number;
   dueDate: string;
-  dueAmount: number;
 };
 
 type CardForm = {
@@ -25,18 +24,16 @@ type CardForm = {
   dueMonth: string;
   debt: string;
   limit: string;
-  dueAmount: string;
 };
 
 type Payment = {
   id: string;
   card: string;
   date: string;
-  amount: number;
   status: "Yaklasiyor" | "Planlandi";
 };
 
-const storageKey = "kart-takip:v0.4:cards";
+const storageKey = "kart-takip:v0.5:cards";
 
 const colorOptions = [
   "from-emerald-500 to-cyan-500",
@@ -59,7 +56,6 @@ const emptyForm: CardForm = {
   dueMonth: "01",
   debt: "",
   limit: "",
-  dueAmount: "",
 };
 
 const statusStyles: Record<Payment["status"], string> = {
@@ -93,7 +89,6 @@ function makePayments(cards: Card[]): Payment[] {
     id: card.id,
     card: card.name,
     date: card.dueDate,
-    amount: card.dueAmount,
     status: index === 0 ? "Yaklasiyor" : "Planlandi",
   }));
 }
@@ -113,7 +108,6 @@ function safeCardFromUnknown(card: Partial<Card>, index: number) {
     debt: Number(card.debt) || 0,
     limit: Number(card.limit) || 0,
     dueDate,
-    dueAmount: Number(card.dueAmount) || 0,
   };
 }
 
@@ -127,7 +121,7 @@ function readStoredCards() {
     const parsed = JSON.parse(storedCards) as Partial<Card>[];
     return parsed
       .map(safeCardFromUnknown)
-      .filter((card) => card.bank && card.name && card.last4.length === 4 && card.limit > 0);
+      .filter((card) => card.bank && card.name && card.last4.length === 4);
   } catch {
     return [];
   }
@@ -155,16 +149,15 @@ export default function Home() {
   const totals = useMemo(() => {
     const totalDebt = cards.reduce((sum, card) => sum + card.debt, 0);
     const totalLimit = cards.reduce((sum, card) => sum + card.limit, 0);
-    const totalDue = cards.reduce((sum, card) => sum + card.dueAmount, 0);
     const availableLimit = Math.max(0, totalLimit - totalDebt);
     const utilization = totalLimit > 0 ? Math.round((totalDebt / totalLimit) * 100) : 0;
 
-    return { totalDebt, totalLimit, totalDue, availableLimit, utilization };
+    return { totalDebt, totalLimit, availableLimit, utilization };
   }, [cards]);
 
   const summary = [
     { label: "Toplam borc", value: formatCurrency(totals.totalDebt), note: `${cards.length} kartta guncel bakiye` },
-    { label: "Bu ay odenecek", value: formatCurrency(totals.totalDue), note: "Ekstrelerden gelen toplam" },
+    { label: "Kart sayisi", value: String(cards.length), note: "Eklenen aktif kart" },
     { label: "Kullanilabilir limit", value: formatCurrency(totals.availableLimit), note: `Toplam limit ${formatCurrency(totals.totalLimit)}` },
     { label: "Ortalama kullanim", value: `%${totals.utilization}`, note: totals.utilization < 50 ? "Risk seviyesi dusuk" : "Kontrol gerekli" },
   ];
@@ -187,7 +180,6 @@ export default function Home() {
     const dueDate = `${form.dueDay}/${form.dueMonth}`;
     const debt = parseMoney(form.debt);
     const limit = parseMoney(form.limit);
-    const dueAmount = parseMoney(form.dueAmount);
 
     if (!bank) {
       setFormError("Banka adi gerekli.");
@@ -204,11 +196,6 @@ export default function Home() {
       return;
     }
 
-    if (limit <= 0) {
-      setFormError("Limit 0'dan buyuk olmali.");
-      return;
-    }
-
     const nextCard: Card = {
       id: `${last4}-${Date.now()}`,
       bank,
@@ -219,7 +206,6 @@ export default function Home() {
       debt,
       limit,
       dueDate,
-      dueAmount,
     };
 
     setCards((current) => [nextCard, ...current]);
@@ -243,7 +229,7 @@ export default function Home() {
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-5 sm:px-6 lg:px-8">
         <header className="flex flex-col gap-4 border-b border-white/10 pb-5 md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="text-sm font-medium text-cyan-200">Cuzdan v0.4</p>
+            <p className="text-sm font-medium text-cyan-200">Cuzdan v0.5</p>
             <h1 className="mt-2 text-3xl font-semibold tracking-normal text-white sm:text-4xl">
               Kart takip paneli
             </h1>
@@ -276,7 +262,7 @@ export default function Home() {
             <div className="flex flex-col gap-2 border-b border-white/10 pb-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-white">Kart ekle</h2>
-                <p className="mt-1 text-sm text-slate-500">Yalnizca takip icin gereken guvenli bilgiler.</p>
+                <p className="mt-1 text-sm text-slate-500">Zorunlu alanlar: banka, kart adi ve son 4 hane.</p>
               </div>
               <button type="button" onClick={clearCards} className="rounded-md border border-white/10 px-3 py-2 text-sm text-slate-300 transition hover:bg-white/10">
                 Tum kartlari temizle
@@ -322,15 +308,11 @@ export default function Home() {
               </div>
               <label className="space-y-2 text-sm text-slate-300">
                 <span>Limit</span>
-                <input value={form.limit} onChange={(event) => updateForm("limit", event.target.value)} inputMode="decimal" placeholder="75000" className="w-full rounded-md border border-white/10 bg-slate-950 px-3 py-3 text-white outline-none transition placeholder:text-slate-700 focus:border-cyan-300/60" />
+                <input value={form.limit} onChange={(event) => updateForm("limit", event.target.value)} inputMode="decimal" placeholder="Bos birakilabilir" className="w-full rounded-md border border-white/10 bg-slate-950 px-3 py-3 text-white outline-none transition placeholder:text-slate-700 focus:border-cyan-300/60" />
               </label>
               <label className="space-y-2 text-sm text-slate-300">
                 <span>Guncel borc</span>
-                <input value={form.debt} onChange={(event) => updateForm("debt", event.target.value)} inputMode="decimal" placeholder="0" className="w-full rounded-md border border-white/10 bg-slate-950 px-3 py-3 text-white outline-none transition placeholder:text-slate-700 focus:border-cyan-300/60" />
-              </label>
-              <label className="space-y-2 text-sm text-slate-300 sm:col-span-2">
-                <span>Bu ekstre icin odenecek tutar</span>
-                <input value={form.dueAmount} onChange={(event) => updateForm("dueAmount", event.target.value)} inputMode="decimal" placeholder="0" className="w-full rounded-md border border-white/10 bg-slate-950 px-3 py-3 text-white outline-none transition placeholder:text-slate-700 focus:border-cyan-300/60" />
+                <input value={form.debt} onChange={(event) => updateForm("debt", event.target.value)} inputMode="decimal" placeholder="Bos birakilabilir" className="w-full rounded-md border border-white/10 bg-slate-950 px-3 py-3 text-white outline-none transition placeholder:text-slate-700 focus:border-cyan-300/60" />
               </label>
             </div>
 
@@ -397,15 +379,9 @@ export default function Home() {
                             <div className="h-2 rounded-full bg-cyan-300" style={{ width: `${utilization}%` }} />
                           </div>
                         </div>
-                        <div className="flex items-center justify-between gap-3 rounded-md bg-white/[0.04] p-3">
-                          <div>
-                            <p className="text-xs text-slate-500">Bu ekstre icin</p>
-                            <p className="mt-1 text-sm font-semibold text-white">{formatCurrency(card.dueAmount)}</p>
-                          </div>
-                          <button type="button" onClick={() => removeCard(card.id)} className="rounded-md border border-rose-300/20 px-3 py-2 text-sm text-rose-100 transition hover:bg-rose-400/10">
-                            Sil
-                          </button>
-                        </div>
+                        <button type="button" onClick={() => removeCard(card.id)} className="w-full rounded-md border border-rose-300/20 px-3 py-2 text-sm text-rose-100 transition hover:bg-rose-400/10">
+                          Sil
+                        </button>
                       </div>
                     </article>
                   );
@@ -430,12 +406,9 @@ export default function Home() {
                     <p className="font-medium text-white">{payment.card}</p>
                     <p className="mt-1 text-sm text-slate-500">Son odeme: {payment.date}</p>
                   </div>
-                  <div className="text-right">
-                    <p className="font-semibold text-white">{formatCurrency(payment.amount)}</p>
-                    <span className={`mt-2 inline-flex rounded-md px-2 py-1 text-xs font-medium ring-1 ${statusStyles[payment.status]}`}>
-                      {payment.status}
-                    </span>
-                  </div>
+                  <span className={`inline-flex rounded-md px-2 py-1 text-xs font-medium ring-1 ${statusStyles[payment.status]}`}>
+                    {payment.status}
+                  </span>
                 </div>
               )) : (
                 <div className="p-5 text-sm text-slate-500">Odeme takibi icin kart ekle.</div>
