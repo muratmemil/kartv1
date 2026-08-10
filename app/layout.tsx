@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "../public/vendor/tabler/tabler.min.css";
+import "../public/vendor/tabler/tabler-vendors.min.css";
 
 export const metadata: Metadata = {
   title: "Kart Takip",
@@ -9,7 +11,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="tr" className="h-full">
-      <body>{children}</body>
+      <body className="theme-light">{children}</body>
     </html>
   );
 }
