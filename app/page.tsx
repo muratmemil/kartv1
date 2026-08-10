@@ -681,9 +681,10 @@ function CardTile({
   onDelete: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const maskedNumber = `1234 1234 1234 ${card.last4}`;
 
   return (
-    <div className="group relative overflow-visible rounded-2xl pb-16 focus-within:z-20 hover:z-20">
+    <div className="group relative overflow-visible rounded-[22px] pb-16 focus-within:z-20 hover:z-20">
       <article
         role="button"
         tabIndex={0}
@@ -694,24 +695,52 @@ function CardTile({
             setOpen((current) => !current);
           }
         }}
-        className={`aspect-[1.586/1] cursor-pointer rounded-2xl bg-gradient-to-br ${card.color} p-5 text-white shadow-sm ring-1 ring-white/20`}
+        className={`relative aspect-[1.72/1] cursor-pointer overflow-hidden rounded-[22px] bg-gradient-to-br ${card.color} p-5 text-white shadow-[0_16px_35px_rgba(15,23,42,0.18)] ring-1 ring-white/20 transition group-hover:-translate-y-1 group-hover:shadow-[0_22px_45px_rgba(15,23,42,0.22)]`}
       >
-        <div className="flex h-full flex-col justify-between">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_18%,rgba(255,255,255,0.20),transparent_24%),linear-gradient(135deg,rgba(15,23,42,0.30),rgba(15,23,42,0.08)_42%,rgba(255,255,255,0.08))]" />
+        <div className="relative flex h-full flex-col justify-between">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-sm text-white/80">{card.bank}</p>
-              <h3 className="mt-1 text-lg font-semibold">{card.name}</h3>
+              <p className="text-xs font-semibold uppercase tracking-wide text-white/75">{card.bank}</p>
+              <h3 className="mt-1 text-base font-semibold">{card.name}</h3>
             </div>
-            <span className="rounded-full bg-white/20 px-3 py-1 text-xs font-semibold">*{card.last4}</span>
+            <div className="relative h-7 w-7">
+              <span className="absolute right-0 top-1 h-5 w-5 rounded-full border-2 border-white/85" />
+              <span className="absolute right-1 top-0 h-7 w-7 rounded-full border-2 border-white/65" />
+              <span className="absolute right-2 -top-1 h-9 w-9 rounded-full border-2 border-white/40" />
+            </div>
           </div>
+
+          <div className="grid h-8 w-10 place-items-center rounded-md bg-white/90 shadow-sm">
+            <div className="grid grid-cols-2 gap-0.5">
+              <span className="h-2.5 w-3 rounded-[2px] bg-slate-300" />
+              <span className="h-2.5 w-3 rounded-[2px] bg-slate-300" />
+              <span className="h-2.5 w-3 rounded-[2px] bg-slate-300" />
+              <span className="h-2.5 w-3 rounded-[2px] bg-slate-300" />
+            </div>
+          </div>
+
           <div>
-            <p className="text-xs uppercase text-white/70">Limit</p>
-            <p className="mt-1 text-2xl font-semibold">{money(card.limit)}</p>
+            <div className="mb-2 grid grid-cols-[1fr_auto] items-end gap-3 text-[10px] uppercase tracking-wide text-white/75">
+              <span>{card.name}</span>
+              <span>{card.expiryDate}</span>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <p className="font-mono text-[clamp(0.9rem,3.8vw,1.08rem)] tracking-[0.08em] text-white">{maskedNumber}</p>
+              <div className="relative h-7 w-11 shrink-0 rounded-md bg-white/15">
+                <span className="absolute left-2 top-1.5 h-4 w-4 rounded-full bg-red-500" />
+                <span className="absolute left-5 top-1.5 h-4 w-4 rounded-full bg-amber-400 mix-blend-screen" />
+              </div>
+            </div>
           </div>
         </div>
       </article>
-      <div className={`absolute inset-x-3 top-[72%] z-10 rounded-xl border border-slate-200 bg-white p-4 text-slate-950 shadow-xl transition ${open ? "pointer-events-auto translate-y-0 opacity-100" : "pointer-events-none translate-y-3 opacity-0 group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:translate-y-0 group-focus-within:opacity-100"}`}>
+      <div className={`absolute inset-x-3 top-[78%] z-10 rounded-xl border border-slate-200 bg-white p-4 text-slate-950 shadow-xl transition ${open ? "pointer-events-auto translate-y-0 opacity-100" : "pointer-events-none translate-y-3 opacity-0 group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:translate-y-0 group-focus-within:opacity-100"}`}>
         <div className="grid gap-3 text-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-slate-500">Limit</span>
+            <span className="font-semibold">{money(card.limit)}</span>
+          </div>
           <div className="flex items-center justify-between">
             <span className="text-slate-500">G&#252;ncel bor&#231;</span>
             <span className="font-semibold">{money(card.debt)}</span>
