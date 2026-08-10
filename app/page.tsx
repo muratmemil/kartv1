@@ -132,6 +132,8 @@ export default function Home() {
   const [form, setForm] = useState<CardForm>(emptyForm);
   const [formError, setFormError] = useState("");
   const [isReady, setIsReady] = useState(false);
+  const [isCardModalOpen, setIsCardModalOpen] = useState(false);
+  const [editingCardId, setEditingCardId] = useState<string | null>(null);
 
   useEffect(() => {
     window.setTimeout(() => {
@@ -170,7 +172,40 @@ export default function Home() {
     setFormError("");
   }
 
-  function addCard(event: FormEvent<HTMLFormElement>) {
+  function openAddCard() {
+    setEditingCardId(null);
+    setForm(emptyForm);
+    setFormError("");
+    setIsCardModalOpen(true);
+  }
+
+  function openEditCard(card: Card) {
+    const [expiryMonth, expiryYear] = card.expiryDate.split("/");
+    const [dueDay, dueMonth] = card.dueDate.split("/");
+
+    setEditingCardId(card.id);
+    setForm({
+      bank: card.bank,
+      name: card.name,
+      last4: card.last4,
+      expiryMonth: expiryMonth || "01",
+      expiryYear: expiryYear || (years[0] ?? "26"),
+      dueDay: dueDay || "01",
+      dueMonth: dueMonth || "01",
+      debt: card.debt ? String(card.debt) : "",
+      limit: card.limit ? String(card.limit) : "",
+    });
+    setFormError("");
+    setIsCardModalOpen(true);
+  }
+
+  function closeCardModal() {
+    setIsCardModalOpen(false);
+    setEditingCardId(null);
+    setFormError("");
+  }
+
+  function saveCard(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const bank = form.bank.trim();
@@ -196,23 +231,29 @@ export default function Home() {
       return;
     }
 
-    const nextCard: Card = {
-      id: `${last4}-${Date.now()}`,
-      bank,
-      name,
-      last4,
-      expiryDate,
-      color: colorOptions[cards.length % colorOptions.length],
-      debt,
-      limit,
-      dueDate,
-    };
+    if (editingCardId) {
+      setCards((current) => current.map((card) => card.id === editingCardId ? { ...card, bank, name, last4, expiryDate, debt, limit, dueDate } : card));
+    } else {
+      const nextCard: Card = {
+        id: `${last4}-${Date.now()}`,
+        bank,
+        name,
+        last4,
+        expiryDate,
+        color: colorOptions[cards.length % colorOptions.length],
+        debt,
+        limit,
+        dueDate,
+      };
 
-    setCards((current) => [nextCard, ...current]);
+      setCards((current) => [nextCard, ...current]);
+    }
+
     setForm(emptyForm);
     setFormError("");
+    setEditingCardId(null);
+    setIsCardModalOpen(false);
   }
-
   function removeCard(cardId: string) {
     setCards((current) => current.filter((card) => card.id !== cardId));
   }
@@ -221,6 +262,8 @@ export default function Home() {
     setCards([]);
     setForm(emptyForm);
     setFormError("");
+    setEditingCardId(null);
+    setIsCardModalOpen(false);
     window.localStorage.removeItem(storageKey);
   }
 
@@ -229,21 +272,21 @@ export default function Home() {
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-5 sm:px-6 lg:px-8">
         <header className="flex flex-col gap-4 border-b border-white/10 pb-5 md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="text-sm font-medium text-cyan-200">Cuzdan v0.5</p>
+            <p className="text-sm font-medium text-cyan-200">Cuzdan v0.7</p>
             <h1 className="mt-2 text-3xl font-semibold tracking-normal text-white sm:text-4xl">
               Kart takip paneli
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">
-              Temiz sistem: kartlari kendin eklersin, bilgiler bu cihazdaki tarayici hafizasinda saklanir.
+              Kartlarini takip et, odeme tarihlerini kacirma, hassas kart bilgilerini sisteme alma.
             </p>
           </div>
           <div className="flex flex-wrap gap-2 text-sm">
-            <span className="rounded-md border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-emerald-100">
-              Tam kart numarasi yok
-            </span>
-            <span className="rounded-md border border-rose-300/20 bg-rose-400/10 px-3 py-2 text-rose-100">
-              CVV/PIN/sifre yok
-            </span>
+            <button type="button" onClick={openAddCard} className="rounded-md bg-cyan-300 px-4 py-2 font-semibold text-slate-950 transition hover:bg-cyan-200">
+              Kart ekle
+            </button>
+            <button type="button" onClick={clearCards} className="rounded-md border border-white/10 px-4 py-2 text-slate-300 transition hover:bg-white/10">
+              Tum kartlari temizle
+            </button>
           </div>
         </header>
 
@@ -257,80 +300,16 @@ export default function Home() {
           ))}
         </section>
 
-        <section className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-          <form onSubmit={addCard} className="rounded-lg border border-white/10 bg-white/[0.04] p-5">
-            <div className="flex flex-col gap-2 border-b border-white/10 pb-4 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-white">Kart ekle</h2>
-                <p className="mt-1 text-sm text-slate-500">Zorunlu alanlar: banka, kart adi ve son 4 hane.</p>
-              </div>
-              <button type="button" onClick={clearCards} className="rounded-md border border-white/10 px-3 py-2 text-sm text-slate-300 transition hover:bg-white/10">
-                Tum kartlari temizle
-              </button>
+        <section className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-white">Guvenli takip modeli</h2>
+              <p className="mt-1 text-sm text-slate-500">Banka sifresi, PIN, CVV veya tam kart numarasi istemiyoruz. Kart kimligi icin yalnizca son 4 hane tutulur.</p>
             </div>
-
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <label className="space-y-2 text-sm text-slate-300">
-                <span>Banka</span>
-                <input value={form.bank} onChange={(event) => updateForm("bank", event.target.value)} placeholder="Garanti BBVA" className="w-full rounded-md border border-white/10 bg-slate-950 px-3 py-3 text-white outline-none transition placeholder:text-slate-700 focus:border-cyan-300/60" />
-              </label>
-              <label className="space-y-2 text-sm text-slate-300">
-                <span>Kart adi</span>
-                <input value={form.name} onChange={(event) => updateForm("name", event.target.value)} placeholder="Bonus Platinum" className="w-full rounded-md border border-white/10 bg-slate-950 px-3 py-3 text-white outline-none transition placeholder:text-slate-700 focus:border-cyan-300/60" />
-              </label>
-              <label className="space-y-2 text-sm text-slate-300">
-                <span>Son 4 hane</span>
-                <input value={form.last4} onChange={(event) => updateForm("last4", event.target.value)} inputMode="numeric" maxLength={4} placeholder="4821" className="w-full rounded-md border border-white/10 bg-slate-950 px-3 py-3 text-white outline-none transition placeholder:text-slate-700 focus:border-cyan-300/60" />
-              </label>
-              <div className="space-y-2 text-sm text-slate-300">
-                <span>Son kullanma tarihi</span>
-                <div className="grid grid-cols-2 gap-2">
-                  <select value={form.expiryMonth} onChange={(event) => updateForm("expiryMonth", event.target.value)} className="w-full rounded-md border border-white/10 bg-slate-950 px-3 py-3 text-white outline-none transition focus:border-cyan-300/60">
-                    {months.map((month) => <option key={month} value={month}>{month}</option>)}
-                  </select>
-                  <select value={form.expiryYear} onChange={(event) => updateForm("expiryYear", event.target.value)} className="w-full rounded-md border border-white/10 bg-slate-950 px-3 py-3 text-white outline-none transition focus:border-cyan-300/60">
-                    {years.map((year) => <option key={year} value={year}>{year}</option>)}
-                  </select>
-                </div>
-                <p className="text-xs text-slate-600">Format: {form.expiryMonth}/{form.expiryYear}</p>
-              </div>
-              <div className="space-y-2 text-sm text-slate-300">
-                <span>Son odeme tarihi</span>
-                <div className="grid grid-cols-2 gap-2">
-                  <select value={form.dueDay} onChange={(event) => updateForm("dueDay", event.target.value)} className="w-full rounded-md border border-white/10 bg-slate-950 px-3 py-3 text-white outline-none transition focus:border-cyan-300/60">
-                    {days.map((day) => <option key={day} value={day}>{day}</option>)}
-                  </select>
-                  <select value={form.dueMonth} onChange={(event) => updateForm("dueMonth", event.target.value)} className="w-full rounded-md border border-white/10 bg-slate-950 px-3 py-3 text-white outline-none transition focus:border-cyan-300/60">
-                    {months.map((month) => <option key={month} value={month}>{month}</option>)}
-                  </select>
-                </div>
-                <p className="text-xs text-slate-600">Format: {form.dueDay}/{form.dueMonth}</p>
-              </div>
-              <label className="space-y-2 text-sm text-slate-300">
-                <span>Limit</span>
-                <input value={form.limit} onChange={(event) => updateForm("limit", event.target.value)} inputMode="decimal" placeholder="Bos birakilabilir" className="w-full rounded-md border border-white/10 bg-slate-950 px-3 py-3 text-white outline-none transition placeholder:text-slate-700 focus:border-cyan-300/60" />
-              </label>
-              <label className="space-y-2 text-sm text-slate-300">
-                <span>Guncel borc</span>
-                <input value={form.debt} onChange={(event) => updateForm("debt", event.target.value)} inputMode="decimal" placeholder="Bos birakilabilir" className="w-full rounded-md border border-white/10 bg-slate-950 px-3 py-3 text-white outline-none transition placeholder:text-slate-700 focus:border-cyan-300/60" />
-              </label>
-            </div>
-
-            {formError ? <p className="mt-4 rounded-md border border-rose-300/20 bg-rose-400/10 px-3 py-2 text-sm text-rose-100">{formError}</p> : null}
-
-            <button type="submit" className="mt-4 w-full rounded-md bg-cyan-300 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200">
-              Karti kaydet
-            </button>
-          </form>
-
-          <aside className="rounded-lg border border-white/10 bg-white/[0.04] p-5">
-            <h2 className="text-lg font-semibold text-white">Guvenlik modeli</h2>
-            <div className="mt-4 space-y-3 text-sm leading-6 text-slate-400">
-              <p>Uygulama banka sifresi, PIN veya CVV istemez ve saklamaz.</p>
-              <p>Kart kimligi icin yalnizca banka adi, kart adi, son dort hane ve tarih ozetleri kullanilir.</p>
-              <p>Kayitlar simdilik sadece bu tarayicinin localStorage alaninda tutulur; cihaz disina otomatik gonderilmez.</p>
-            </div>
-          </aside>
+            <span className="w-fit rounded-md border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-sm text-emerald-100">
+              Hassas veri yok
+            </span>
+          </div>
         </section>
 
         <section className="grid gap-6 lg:grid-cols-[1.35fr_0.85fr]">
@@ -379,9 +358,14 @@ export default function Home() {
                             <div className="h-2 rounded-full bg-cyan-300" style={{ width: `${utilization}%` }} />
                           </div>
                         </div>
-                        <button type="button" onClick={() => removeCard(card.id)} className="w-full rounded-md border border-rose-300/20 px-3 py-2 text-sm text-rose-100 transition hover:bg-rose-400/10">
-                          Sil
-                        </button>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button type="button" onClick={() => openEditCard(card)} className="rounded-md border border-cyan-300/20 px-3 py-2 text-sm text-cyan-100 transition hover:bg-cyan-400/10">
+                            Duzenle
+                          </button>
+                          <button type="button" onClick={() => removeCard(card.id)} className="rounded-md border border-rose-300/20 px-3 py-2 text-sm text-rose-100 transition hover:bg-rose-400/10">
+                            Sil
+                          </button>
+                        </div>
                       </div>
                     </article>
                   );
@@ -422,6 +406,80 @@ export default function Home() {
           <p className="mt-3 text-sm text-slate-500">Henuz islem yok. Bir sonraki adimda kartlara harcama ekleme ekranini baglayacagiz.</p>
         </section>
       </div>
+
+      {isCardModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-end bg-black/70 px-4 py-4 backdrop-blur-sm sm:items-center sm:justify-center">
+          <form onSubmit={saveCard} className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-white/10 bg-[#0d121a] p-5 shadow-2xl shadow-black/60">
+            <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-4">
+              <div>
+                <h2 className="text-lg font-semibold text-white">{editingCardId ? "Karti duzenle" : "Kart ekle"}</h2>
+                <p className="mt-1 text-sm text-slate-500">Zorunlu alanlar: banka, kart adi ve son 4 hane.</p>
+              </div>
+              <button type="button" onClick={closeCardModal} className="rounded-md border border-white/10 px-3 py-2 text-sm text-slate-300 transition hover:bg-white/10" aria-label="Kapat">
+                Kapat
+              </button>
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <label className="space-y-2 text-sm text-slate-300">
+                <span>Banka</span>
+                <input value={form.bank} onChange={(event) => updateForm("bank", event.target.value)} placeholder="Garanti BBVA" className="w-full rounded-md border border-white/10 bg-slate-950 px-3 py-3 text-white outline-none transition placeholder:text-slate-700 focus:border-cyan-300/60" />
+              </label>
+              <label className="space-y-2 text-sm text-slate-300">
+                <span>Kart adi</span>
+                <input value={form.name} onChange={(event) => updateForm("name", event.target.value)} placeholder="Bonus Platinum" className="w-full rounded-md border border-white/10 bg-slate-950 px-3 py-3 text-white outline-none transition placeholder:text-slate-700 focus:border-cyan-300/60" />
+              </label>
+              <label className="space-y-2 text-sm text-slate-300">
+                <span>Son 4 hane</span>
+                <input value={form.last4} onChange={(event) => updateForm("last4", event.target.value)} inputMode="numeric" maxLength={4} placeholder="4821" className="w-full rounded-md border border-white/10 bg-slate-950 px-3 py-3 text-white outline-none transition placeholder:text-slate-700 focus:border-cyan-300/60" />
+              </label>
+              <div className="space-y-2 text-sm text-slate-300">
+                <span>Son kullanma tarihi</span>
+                <div className="grid grid-cols-2 gap-2">
+                  <select value={form.expiryMonth} onChange={(event) => updateForm("expiryMonth", event.target.value)} className="w-full rounded-md border border-white/10 bg-slate-950 px-3 py-3 text-white outline-none transition focus:border-cyan-300/60">
+                    {months.map((month) => <option key={month} value={month}>{month}</option>)}
+                  </select>
+                  <select value={form.expiryYear} onChange={(event) => updateForm("expiryYear", event.target.value)} className="w-full rounded-md border border-white/10 bg-slate-950 px-3 py-3 text-white outline-none transition focus:border-cyan-300/60">
+                    {years.map((year) => <option key={year} value={year}>{year}</option>)}
+                  </select>
+                </div>
+                <p className="text-xs text-slate-600">Format: {form.expiryMonth}/{form.expiryYear}</p>
+              </div>
+              <div className="space-y-2 text-sm text-slate-300">
+                <span>Son odeme tarihi</span>
+                <div className="grid grid-cols-2 gap-2">
+                  <select value={form.dueDay} onChange={(event) => updateForm("dueDay", event.target.value)} className="w-full rounded-md border border-white/10 bg-slate-950 px-3 py-3 text-white outline-none transition focus:border-cyan-300/60">
+                    {days.map((day) => <option key={day} value={day}>{day}</option>)}
+                  </select>
+                  <select value={form.dueMonth} onChange={(event) => updateForm("dueMonth", event.target.value)} className="w-full rounded-md border border-white/10 bg-slate-950 px-3 py-3 text-white outline-none transition focus:border-cyan-300/60">
+                    {months.map((month) => <option key={month} value={month}>{month}</option>)}
+                  </select>
+                </div>
+                <p className="text-xs text-slate-600">Format: {form.dueDay}/{form.dueMonth}</p>
+              </div>
+              <label className="space-y-2 text-sm text-slate-300">
+                <span>Limit</span>
+                <input value={form.limit} onChange={(event) => updateForm("limit", event.target.value)} inputMode="decimal" placeholder="Bos birakilabilir" className="w-full rounded-md border border-white/10 bg-slate-950 px-3 py-3 text-white outline-none transition placeholder:text-slate-700 focus:border-cyan-300/60" />
+              </label>
+              <label className="space-y-2 text-sm text-slate-300 sm:col-span-2">
+                <span>Guncel borc</span>
+                <input value={form.debt} onChange={(event) => updateForm("debt", event.target.value)} inputMode="decimal" placeholder="Bos birakilabilir" className="w-full rounded-md border border-white/10 bg-slate-950 px-3 py-3 text-white outline-none transition placeholder:text-slate-700 focus:border-cyan-300/60" />
+              </label>
+            </div>
+
+            {formError ? <p className="mt-4 rounded-md border border-rose-300/20 bg-rose-400/10 px-3 py-2 text-sm text-rose-100">{formError}</p> : null}
+
+            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button type="button" onClick={closeCardModal} className="rounded-md border border-white/10 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:bg-white/10">
+                Vazgec
+              </button>
+              <button type="submit" className="rounded-md bg-cyan-300 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200">
+                {editingCardId ? "Degisiklikleri kaydet" : "Karti kaydet"}
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
     </main>
   );
 }
