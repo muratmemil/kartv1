@@ -54,6 +54,9 @@ const colors = [
   "from-violet-500 to-fuchsia-500",
 ];
 
+const expenseCategories = ["Genel", "Giyim", "Seyahat", "Akaryakıt", "Market", "Yeme İçme", "Fatura", "Sağlık", "Eğlence"];
+const categoryColors = ["#14b8a6", "#0ea5e9", "#f43f5e", "#f59e0b", "#8b5cf6", "#22c55e", "#6366f1", "#ec4899", "#64748b"];
+
 const days = Array.from({ length: 31 }, (_, index) => String(index + 1).padStart(2, "0"));
 const months = Array.from({ length: 12 }, (_, index) => String(index + 1).padStart(2, "0"));
 const years = Array.from({ length: 12 }, (_, index) => String(new Date().getFullYear() + index).slice(-2));
@@ -75,7 +78,7 @@ const emptyMovementForm: MovementForm = {
   type: "expense",
   source: "cash",
   amount: "",
-  category: "Genel",
+  category: expenseCategories[0],
   note: "",
   date: today,
 };
@@ -218,6 +221,23 @@ export default function Home() {
       ? `conic-gradient(#10b981 0 ${incomePercent}%, #f43f5e ${incomePercent}% 100%)`
       : "conic-gradient(#e2e8f0 0 100%)",
   };
+  const cardExpenseByCategory = expenseCategories.map((category, index) => {
+    const amount = movements
+      .filter((item) => item.type === "expense" && item.source !== "cash" && item.category === category && monthKey(item.date) === currentMonth)
+      .reduce((sum, item) => sum + item.amount, 0);
+
+    return { category, amount, color: categoryColors[index % categoryColors.length] };
+  }).filter((item) => item.amount > 0);
+  const cardExpenseTotal = cardExpenseByCategory.reduce((sum, item) => sum + item.amount, 0);
+  let categoryCursor = 0;
+  const cardCategoryGradient = cardExpenseTotal > 0
+    ? `conic-gradient(${cardExpenseByCategory.map((item) => {
+        const start = categoryCursor;
+        const size = (item.amount / cardExpenseTotal) * 100;
+        categoryCursor += size;
+        return `${item.color} ${start}% ${categoryCursor}%`;
+      }).join(", ")})`
+    : "conic-gradient(#e2e8f0 0 100%)";
 
   function updateCard(field: keyof CardForm, value: string) {
     setCardForm((current) => ({
@@ -419,20 +439,27 @@ export default function Home() {
           </article>
 
           <article className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-semibold text-slate-950">Harcama da&#287;&#305;l&#305;m&#305;</h2>
-            <p className="mt-1 text-sm text-slate-500">Bu ayki hareketlerin kasa ve kart etkisi</p>
-            <div className="mt-5 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-lg bg-teal-50 p-4">
-                <p className="text-sm text-teal-700">Nakit kasa</p>
-                <p className="mt-2 text-xl font-semibold text-teal-950">{money(cash)}</p>
+            <h2 className="text-lg font-semibold text-slate-950">Kart harcamaları</h2>
+            <p className="mt-1 text-sm text-slate-500">Giyim, seyahat, akaryakıt ve diğer kart harcamaları</p>
+            <div className="mt-5 flex flex-col items-center gap-5 sm:flex-row">
+              <div className="relative grid h-40 w-40 shrink-0 place-items-center rounded-full" style={{ background: cardCategoryGradient }}>
+                <div className="grid h-24 w-24 place-items-center rounded-full bg-white text-center shadow-inner">
+                  <div>
+                    <p className="text-xs text-slate-500">Kart gideri</p>
+                    <p className="text-base font-semibold text-slate-950">{money(cardExpenseTotal)}</p>
+                  </div>
+                </div>
               </div>
-              <div className="rounded-lg bg-sky-50 p-4">
-                <p className="text-sm text-sky-700">Kart borcu</p>
-                <p className="mt-2 text-xl font-semibold text-sky-950">{money(totals.totalDebt)}</p>
-              </div>
-              <div className="rounded-lg bg-violet-50 p-4">
-                <p className="text-sm text-violet-700">Kullan&#305;labilir limit</p>
-                <p className="mt-2 text-xl font-semibold text-violet-950">{money(totals.availableLimit)}</p>
+              <div className="grid w-full gap-2">
+                {cardExpenseByCategory.length > 0 ? cardExpenseByCategory.map((item) => (
+                  <div key={item.category} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <span className="h-3 w-3 rounded-full" style={{ background: item.color }} />
+                      <span className="text-sm font-medium text-slate-700">{item.category}</span>
+                    </div>
+                    <span className="text-sm font-semibold text-slate-950">{money(item.amount)}</span>
+                  </div>
+                )) : <p className="rounded-lg bg-slate-50 p-4 text-sm text-slate-500">Bu ay kartla harcama yok.</p>}
               </div>
             </div>
           </article>
@@ -600,7 +627,12 @@ export default function Home() {
               </label>
               <TextField label="Tutar" value={movementForm.amount} onChange={(value) => updateMovement("amount", value)} onBlur={() => setMovementForm((current) => ({ ...current, amount: moneyInput(current.amount) }))} placeholder="14.568,00 TL" inputMode="decimal" />
               <TextField label="Tarih" type="date" value={movementForm.date} onChange={(value) => updateMovement("date", value)} />
-              <TextField label="Kategori" value={movementForm.category} onChange={(value) => updateMovement("category", value)} placeholder="Market" />
+                            <label className="space-y-2 text-sm text-slate-700">
+                <span>Kategori</span>
+                <select value={movementForm.category} onChange={(event) => updateMovement("category", event.target.value)} className="field">
+                  {expenseCategories.map((category) => <option key={category} value={category}>{category}</option>)}
+                </select>
+              </label>
               <TextField label="Not" value={movementForm.note} onChange={(value) => updateMovement("note", value)} placeholder="İsteğe bağlı" />
             </div>
             {movementError ? <ErrorText text={movementError} /> : null}
